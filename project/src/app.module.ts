@@ -3,6 +3,8 @@ import { createObserveModule } from '@nestjs/observe';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 
+import { ConfigModule } from '@nestjs/config';
+
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
 @Module({
@@ -14,6 +16,10 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       appSecret: process.env.OBSERVE_APP_SECRET ?? '',
       runtimeMetrics: !Boolean(process.versions?.['webcontainer']),
       serviceId: 'nest-typescript-starter',
+    }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
     }),
   ],
   controllers: [AppController],
