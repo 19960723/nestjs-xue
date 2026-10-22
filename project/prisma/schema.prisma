@@ -7,7 +7,6 @@ datasource db {
   provider = "mysql"
 }
 
-
 model User {
   id        Int      @id @default(autoincrement())
   name      String   @db.VarChar(50)
@@ -19,5 +18,39 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // 关联关系
+  roles UserRole[]
+
   @@map("users")
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(50)
+  code        String   @unique @db.VarChar(50)
+  description String?  @db.VarChar(255)
+  status      Int      @default(1) // 1=启用 0=禁用
+  sort        Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联关系
+  users UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  roleId    Int      @map("role_id")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关联关系
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
 }
