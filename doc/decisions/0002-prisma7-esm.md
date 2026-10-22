@@ -2,7 +2,7 @@
 
 - 日期：2026-10-21
 - 状态：提议
-- 确认记录：当前为文档基线，未安装/运行
+- 确认记录：2026-10-22 用户授权安装三个 Prisma 7.10.1 依赖，已安装；MySQL、生成器、迁移与模块实施仍未验收，完整架构决策保留提议状态
 - 关联：[阶段02](../02-database/implementation.md)、[技术栈](../00-overview/tech-stack.md)
 
 ## 背景与约束
@@ -28,7 +28,7 @@ Prisma CLI/Client/adapter-mariadb精确7.10.1，使用MySQL8.4 LTS。配置prism
 
 ## 验证与重新评估
 
-7.10.1三个包已只读核实存在，Node24/TS6满足声明的engines/peers，但尚无完整安装/构建/DB测试。升级Prisma8必须另评估MySQL支持、迁移、错误模型、事务和生成API，不能仅替换版本号。
+7.10.1三个包已核实并按用户授权安装，Node24/TS6满足声明的engines/peers，依赖检查见 [CHG-20261022-001](../changelog/2026-10-22-001-prisma-dependencies.md)；生成/数据库集成验收尚未执行。升级Prisma8必须另评估MySQL支持、迁移、错误模型、事务和生成API，不能仅替换版本号。
 
 ## 依据
 

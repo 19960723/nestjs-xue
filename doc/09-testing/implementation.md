@@ -1,6 +1,6 @@
 # 阶段 09：测试与代码质量
 
-更新：2026-10-21。文档状态：已编写；功能状态：计划中。工具迁移5.1在01执行；完整分层/CI依赖02～08。现有项目仍是Vitest/Oxlint，本次没有替换或运行它们。
+更新：2026-10-21。文档状态：已编写；功能状态：计划中。工具迁移5.1在01执行；完整分层/CI依赖02～08。5.1 的最小工具迁移已在阶段 01 本地验证：现为 Jest/ESLint/Prettier，27 项单元测试与 5 项 HTTP E2E 通过；其余分层测试、覆盖率门禁和 CI 仍计划中。
 
 ## 1. 阶段目标
 
@@ -25,13 +25,15 @@ Jest ESM仍有实验性限制；本项目用tsc预编译业务与测试，transf
 
 ## 4. 实现前准备
 
-主体工具版本见01和技术栈；@types/jest先查正式兼容版本后精确安装。Supertest已实装7.3.1，@nestjs/testing与core同12.1.3。无需新测试框架。
+主体工具版本见01和技术栈；已精确安装 @types/jest 30.0.0、@jest/globals 30.5.2，新增或升级仍须核实兼容。Supertest已实装7.3.1，@nestjs/testing与core同12.1.3。无需新测试框架。
 
 测试库使用专用低权限账户、明确允许的测试主机和库名`init_xue_test_<runid>`，不能复用开发库/生产库。TEST_DATABASE_URL独立保管；测试入口必须在导入AppModule/Prisma配置前将其赋给DATABASE_URL并设置NODE_ENV=test，且检查库名/主机白名单。清理必须限定本次拥有的测试资源，未知环境直接失败，不自动migrate reset。
 
 ## 5. 详细实施步骤
 
 ### 5.1 迁移测试运行器与编译配置
+
+实施状态：已在阶段 01 本地验证；以下为可复核的配置与维护方法。当前 E2E/integration 配置额外加载 test/setup-env.ts 的编译产物，固定 NODE_ENV=test 并关闭 Observe；数据库集成前仍须按 5.3 补专用测试库保护。
 
 - 目标：在01就有可运行Jest的最小工具链。
 - 文件：新建 `project/tsconfig.test.json`、`project/jest.config.mjs`、`project/jest.e2e.config.mjs`、`project/jest.integration.config.mjs`、`project/scripts/clean-test-dist.mjs`；修改package、现有测试/tsconfig types。
@@ -135,13 +137,13 @@ export default {
 
 ## 8. 验收标准
 
-- [ ] Jest最小迁移已在01完成，TS6/ESM/DI元数据可用，旧工具清理经过审阅。
+- [x] Jest最小迁移已在01完成，TS6/ESM/DI元数据可用，旧工具清理经过审阅。
 - [ ] 单测、真实DB/Redis集成、HTTP E2E层次与证据明确。
 - [ ] 类型/格式/lint/build/覆盖率/关键安全场景全部通过。
 - [ ] 测试库保护和清理范围验证，未碰开发/生产数据。
 - [ ] CI从干净checkout运行通过，失败能阻断合并，未暴露生产Secrets。
 
-验收记录：未执行，本次不安装依赖/不运行现有代码测试；文档静态验证单独记录changelog。
+验收记录：5.1 最小工具迁移的验收见 [阶段01第8节](../01-initialization/implementation.md#8-验收标准)；5.2～5.5 的完整业务分层、数据库/Redis 集成、覆盖率与 CI 尚未验收，不据此标记阶段09已完成。
 
 ## 9. 常见问题
 

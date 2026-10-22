@@ -27,3 +27,14 @@
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+# local configuration and generated artifacts
+.env.*
+!.env.example
+.DS_Store
+/coverage
+/.test-dist
+/src/generated/prisma
+/uploads
+
+/src/generated/prisma

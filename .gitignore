@@ -1,0 +1,12 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+coverage/
+.test-dist/
+*.tsbuildinfo
+src/generated/prisma/
+uploads/
+.pnpm-store/

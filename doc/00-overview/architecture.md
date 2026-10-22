@@ -1,6 +1,6 @@
 # 模块化单体架构
 
-更新：2026-10-21。方案：建议采用，见 [ADR 0001](../decisions/0001-modular-monolith.md)；目标模块均未据此生成。
+更新：2026-10-21。方案：建议采用，见 [ADR 0001](../decisions/0001-modular-monolith.md)；目标业务模块仍未生成；阶段 01 的 HealthModule 和共用 HTTP 配置已实现并本地验证。
 
 ## 请求与模块边界
 
@@ -83,3 +83,9 @@ project/
 ## 演进触发条件
 
 业务模块增长先扩展 Nest Module；查询复杂才细分 Repository；热点读通过指标决定缓存；多实例定时任务先使用单调度器/可靠锁；出现跨进程可靠事件需求再引入 outbox/队列；只有独立发布、隔离或容量需求成立时讨论拆分服务。
+
+## 阶段 01 已落地的启动边界
+
+AppModule 的静态元数据仅声明 Health、问候 Controller/Service。main 与 HTTP E2E 均先调用 createAppModule()，等待 ConfigModule 加载并校验环境，再按 OBSERVE_ENABLED 动态加载可选 SDK，返回配套 DynamicModule 与 NestApplicationOptions。静态 import 不读取 Observe 凭据。ConfigService 跳过未校验的 process.env 回退，读取规范化的数字/布尔值。
+
+configureApp() 统一前缀 /api 与 URI v1，退出信号监听仅在实际 main 启用，避免 E2E 多应用重复注册进程监听器。GET /api/v1/health/live 当前只验证进程服务，不连接数据库/Redis。后续阶段在现有入口上增加能力，不另建一套测试专用启动配置。

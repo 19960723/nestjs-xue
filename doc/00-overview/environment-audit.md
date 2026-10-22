@@ -1,6 +1,6 @@
 # 环境与仓库检查记录
 
-检查日期：2026-10-21（Asia/Shanghai）。仅只读检查，不等于应用验收通过。
+检查日期：2026-10-21（Asia/Shanghai）。下面原始盘点保留文档初始化时的只读快照，不代表当前工具链。阶段 01 实施后摘要见末节；完整验收证据见阶段 01 第 8 节。
 
 ## 本地环境
 
@@ -63,3 +63,17 @@ pnpm-lock 的 importer 与新增 config/dotenv 相符；package-lock 仍记录�
 - 根级缺少 .gitignore，存在 .DS_Store 和已跟踪的 project/.DS_Store；后续加 ignore 不会自动解除已跟踪文件，不能声称已清理。
 
 这些事项均已写入阶段 01 或 [初始排错记录](../troubleshooting/initial-findings.md)，保持用户代码原样。
+
+## 阶段 01 实施后状态（2026-10-21）
+
+用户已授权按阶段 01 实施，工作区开始时干净。Node/pnpm 仍为 24.18.0/11.13.1；Nest 核心/测试固定 12.1.3、CLI 12.0.8、TS 6.0.3、Prettier 3.9.10，新增 Jest/@jest/globals 30.5.2、ESLint 10.13.0、typescript-eslint 8.72.0 及精确辅助依赖。当前仅有 pnpm 锁文件；原始双锁快照保留在上文。
+
+属性初始化检查已开启，测试 types 独立。配置工厂先校验再加载可选 Observe；production/test 不读取 .env。/api/v1 与 /api/v1/health/live 已实现。Hello World 尾空格已修正，Vitest/Oxlint 及旧配置已移除。
+
+本地 typecheck/typecheck:test/build/lint/format:check、27 项单元测试、5 项 HTTP E2E、13 项运行断言、干净副本 frozen-lockfile 离线安装及开发启动均通过；pnpm peers check 无冲突。数据库、Redis、容器、部署、真实 Observe 采集与 CI 未执行。个人 .env 仅前后比较完整性，没有输出内容或摘要。详见 [阶段 01 验收](../01-initialization/implementation.md#8-验收标准)与 [CHG-20261021-002](../changelog/2026-10-21-002-initialization.md)。
+
+## Prisma 依赖安装后状态（2026-10-22）
+
+Node24.18.0/pnpm11.13.1/TS6.0.3 保持原基线。用户授权的 prisma、@prisma/client、@prisma/adapter-mariadb 均精确安装 7.10.1，Node/TS 条件满足官方包声明。项目级仅允许 Prisma 必需安装脚本，禁止 Scarf 安装统计并保留 watcher/resolver 禁止策略。
+
+frozen-lockfile 安装、Prisma 脚本 rebuild、peer 检查、隔离配置的 CLI 版本查询、adapter ESM 导入和现有 build 均退出 0；未读取个人 .env，未生成客户端或操作数据库。上文“未安装”是最初快照，当前安装事实以本节及 [CHG-20261022-001](../changelog/2026-10-22-001-prisma-dependencies.md) 为准，数据库集成仍未验收。

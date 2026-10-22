@@ -1,8 +1,8 @@
 # ADR 0003：统一pnpm并迁移Jest/ESLint
 
 - 日期：2026-10-21
-- 状态：提议
-- 确认记录：依用户目标给出迁移方案，本次未改工具
+- 状态：已接受
+- 确认记录：2026-10-21，用户明确要求“先按文档01阶段，进行修改”；已按本决策完成最小迁移并通过本地验收
 - 关联：[01](../01-initialization/implementation.md)、[09](../09-testing/implementation.md)
 
 ## 背景与约束
@@ -27,7 +27,7 @@
 
 ## 验证与重新评估
 
-版本矩阵的声明兼容已核实，实际迁移尚未验证。若预编译方案运行成本不能接受，在获得新的TS6/transformer兼容证据后另记ADR；不得悄悄切回Vitest并称目标完成。
+版本矩阵与实际迁移均已本地验证：27 项单元测试、5 项 HTTP E2E、类型/构建/lint/格式、干净副本 frozen-lockfile 离线安装及开发启动通过。ESM 测试显式直接依赖 @jest/globals 30.5.2，辅助版本见技术栈；pnpm-workspace.yaml 明确禁止 @parcel/watcher/unrs-resolver 安装脚本并使用平台预编译包。真实 CI 与非 Darwin arm64 平台仍待验证。若预编译方案运行成本不能接受，在获得新的TS6/transformer兼容证据后另记ADR；不得悄悄切回Vitest并称目标完成。
 
 ## 依据
 

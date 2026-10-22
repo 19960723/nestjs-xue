@@ -1,0 +1,7 @@
+# watcher/resolver 使用预编译包，Scarf 安装统计禁用；仅批准 Prisma 安装脚本。
+allowBuilds:
+  '@parcel/watcher': false
+  '@prisma/engines': true
+  '@scarf/scarf': false
+  prisma: true
+  unrs-resolver: false

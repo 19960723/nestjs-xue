@@ -1,13 +1,13 @@
 # 总体路线图与依赖
 
-更新：2026-10-21。文档体系已初始化，功能整体进行中；本次未开展业务开发。
+更新：2026-10-22。文档体系已初始化，功能整体进行中；阶段 01 已完成本地验收，阶段 02 已开始安装依赖，后续业务仍计划中。
 
 ## 阶段与门槛
 
 | 阶段 | 核心交付 | 前置依赖 | 功能状态 | 退出门槛 |
 | --- | --- | --- | --- | --- |
-| [01 初始化](../01-initialization/implementation.md) | 版本/工具统一、配置、启动、存活检查 | 环境盘点 | 进行中：骨架已有 | strict/build/工具最小测试/配置失败即停/health |
-| [02 数据库](../02-database/implementation.md) | Prisma 7、User 基础表、迁移、生命周期 | 01 | 计划中 | 生成/构建、隔离库迁移、连接关闭/事务 |
+| [01 初始化](../01-initialization/implementation.md) | 版本/工具统一、配置、启动、存活检查 | 环境盘点 | 已验证（本地） | strict/build/工具最小测试/配置失败即停/health |
+| [02 数据库](../02-database/implementation.md) | Prisma 7、User 基础表、迁移、生命周期 | 01 | 进行中（仅依赖安装） | 生成/构建、隔离库迁移、连接关闭/事务 |
 | [03 API 规范](../03-api-standards/implementation.md) | DTO/响应/异常/OpenAPI/请求日志 | 01、02 的错误类型 | 计划中 | 错误矩阵与文档可验证 |
 | [04 用户管理](../04-user-management/implementation.md) | CRUD/软删/批量/状态 | 02、03 | 计划中 | 数据一致性与基本测试，限本地 |
 | [05 认证](../05-authentication/implementation.md) | 哈希/JWT/轮换/撤销/重置 | 04；01 的 Jest 骨架 | 计划中 | 并发刷新与退出立即失效等安全验收 |
@@ -30,7 +30,7 @@
 
 ## 第一阶段执行任务
 
-所有内容为后续用户执行计划，详见 [阶段 01](../01-initialization/implementation.md)。
+以下任务已在用户明确授权后完成；验收证据与平台限制详见 [阶段 01 第 8 节](../01-initialization/implementation.md#8-验收标准)。后续阶段仍需按范围授权实施。
 
 1. 记录当前 Git 改动和启动/测试静态问题，保留现有项目，不重新 nest new。
 2. 固定 Node 24.18.0、pnpm 11.13.1、Nest12/TS6；审阅双锁文件后统一 pnpm。

@@ -1,6 +1,6 @@
 # 阶段 02：数据库与 Prisma 集成
 
-更新：2026-10-21。文档状态：已编写；功能状态：计划中。前置：[01](../01-initialization/implementation.md)。命令默认在 `project/`；安装、建库、迁移全部是后续用户实施动作。
+更新：2026-10-22。文档状态：已更新；功能状态：进行中（本次仅安装依赖，数据库集成未验收）。前置：[01](../01-initialization/implementation.md)。命令默认在 `project/`；建库、初始化与迁移仍是后续实施动作。
 
 ## 1. 阶段目标
 
@@ -26,7 +26,9 @@ Prisma Schema 描述模型，Migrate 生成可审阅 SQL；generate 输出类型
 
 先确认 MySQL 是否已存在、是否有数据、地址和版本；不得在未知库上 init/reset。本地服务未核实，可复用经确认的8.4服务或后续手动创建开发容器。DB使用 InnoDB/utf8mb4，时间按UTC；runtime仅DML，迁移账户具备DDL，开发shadow数据库单独配置且不指向业务库。
 
-后续安装：
+依赖安装（2026-10-22 用户已授权代理执行）：仅安装 Prisma CLI、Client、MySQL adapter 三个精确 7.10.1 包，并审批所需安装脚本；不包含 Schema 初始化、客户端生成、数据库连接或迁移。已有 pnpm 构建策略中的 @parcel/watcher、unrs-resolver 继续禁止执行脚本；新增的间接依赖 @scarf/scarf 安装统计脚本显式禁止。
+
+在安装前核对三个包的正式版本、engines、peerDependencies 和安装脚本；遇到 `ERR_PNPM_IGNORED_BUILDS` 时仅允许审阅过的 Prisma 包，不能全局放开脚本权限。安装命令：
 
 ```bash
 pnpm add -DE prisma@7.10.1
@@ -182,12 +184,13 @@ passwordHash可空只为管理端先建PENDING资料；不能用空字符串或�
 - [ ] 唯一约束、事务回滚、连接失败与关闭验证通过。
 - [ ] Node直接运行dist成功；生产TLS和专用账户要求已记录。
 
-验收记录：未执行。MySQL实际版本、账户权限和连通性待用户确认；本次无数据库操作。
+数据库集成验收：未执行。MySQL实际版本、账户权限和连通性待用户确认；本次无数据库操作。2026-10-22 的依赖安装与检查单独记录于 [CHG-20261022-001](../changelog/2026-10-22-001-prisma-dependencies.md)，不能据此勾选完整阶段验收项。
 
 ## 9. 常见问题
 
 | 症状 | 排查与处理 |
 | --- | --- |
+| ERR_PNPM_IGNORED_BUILDS | 审阅后在 pnpm-workspace.yaml 允许 prisma/@prisma/engines，禁止 @scarf/scarf 安装统计；重新安装并补跑 Prisma 脚本，见[排错记录](../troubleshooting/initial-findings.md#prisma-依赖安装排错2026-10-22) |
 | prisma没有generate/migrate dev | 可能误装Prisma8 CLI；查版本与锁文件，精确锁7，不运行无版本npx |
 | PrismaClient必须传adapter | 使用PrismaMariaDb，不能混入无adapter旧示例 |
 | CLI有env、应用无env或反之 | CLI dotenv与Nest加载独立；检查工作目录和两条配置路径 |

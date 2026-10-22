@@ -1,6 +1,6 @@
-# 本次文档交付文件清单
+# 项目文档文件清单
 
-更新：2026-10-21。包含新增/改写入口、规划与实施指南、模板、记录和历史归档；project/ 文件未改动。历史文件只是归档，不是新实施方案。
+更新：2026-10-22。包含新增/改写入口、规划与实施指南、模板、记录和历史归档；阶段 01 已实施并记录验收，阶段 02 已记录依赖安装。历史文件只是归档，不是新实施方案。
 
 ## 根入口与协作规则
 
@@ -46,7 +46,9 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-10-22-001-prisma-dependencies.md](changelog/2026-10-22-001-prisma-dependencies.md)
 - [doc/changelog/2026-10-21-001-documentation-initialization.md](changelog/2026-10-21-001-documentation-initialization.md)
+- [doc/changelog/2026-10-21-002-initialization.md](changelog/2026-10-21-002-initialization.md)
 - [doc/changelog/README.md](changelog/README.md)
 
 ## 问题排查
@@ -69,4 +71,3 @@
 
 - [doc/README.md](README.md)
 - [doc/manifest.md](manifest.md)
-
