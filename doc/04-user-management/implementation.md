@@ -1,6 +1,6 @@
 # 阶段 04：用户管理 CRUD
 
-更新：2026-10-21。文档状态：已编写；功能状态：计划中。前置：[02](../02-database/implementation.md)、[03](../03-api-standards/implementation.md)。本阶段接口仅在隔离本地回环地址开发，05/06完成后才能对外开放。
+更新：2026-10-23。文档状态：已更新；功能状态：进行中（已有基础 CRUD 与 Swagger 响应模型，数据库业务及目标行为未验收）。前置：[02](../02-database/implementation.md)、[03](../03-api-standards/implementation.md)。本阶段接口仅在隔离本地回环地址开发，05/06完成后才能对外开放。
 
 ## 1. 阶段目标
 
@@ -27,17 +27,21 @@ Controller处理HTTP，Service负责不变量/事务，UsersRepository负责查�
 
 无新运行时依赖；复用02/03。Swagger的PartialType从`@nestjs/swagger`导入，避免额外引入mapped-types。
 
-后续手动生成骨架（project/）：
+当前已移动到 `project/src/modules/users/`，保留已有 Module/Controller/Service、输入 DTO、OpenAPI User 和响应模型，不再执行 nest g 生成第二套骨架。AppModule 和 UsersService 已更新相对 `.js` 导入；UsersService 与原路径 HEAD 比较（忽略空白及路径层级）业务内容一致。Prisma 目录尚未移动，新增 Repository 与显式 PrismaModule 依赖单独实施；完整检查结果见本阶段第 8 节。
 
-```bash
-pnpm exec nest g module modules/users
-pnpm exec nest g controller modules/users --no-spec
-pnpm exec nest g service modules/users --no-spec
-```
-
-补写真正有价值的测试；检查CLI生成相对import是否为.js。当前尚无认证，开发监听127.0.0.1且不得发布到公网/共享环境；阶段05全局认证、06权限后才切换目标API访问规则。
+先核对 02 的当前模型及增量方案、03 的实际与目标契约，再改变字段或删除行为。测试恢复后补有价值的断言，本次不运行测试。当前尚无认证，开发监听 127.0.0.1 且不得发布到公网/共享环境；阶段 05 全局认证、06 权限后才切换目标 API 访问规则。
 
 ## 5. 详细实施步骤
+
+### 当前实现收拢顺序（待用户实施）
+
+1. 先完成目录移动，保留 name/email/age 输入、分页默认 1/10 和 `{list,total,page,pageSize}`、硬删除及原返回消息；目录批次不改 API。
+2. 基于当前实际字段落实 public select/响应映射和显式写入白名单；已有 `entities/user.entity.ts` 与 `dto/user-response.dto.ts` 仅描述 OpenAPI，不会过滤 Prisma 实际输出。先防止未来敏感字段随 Schema 扩展而被直接返回，再按目标字段演进。
+3. 新增具体 UsersRepository，迁入已有查询及数据库错误识别；Service 管业务、事务与 HTTP 语义转换，Controller 管路由与 DTO。UsersModule 显式导入同一 PrismaModule 后，再移除全局依赖；不重复注册客户端或创建 BaseRepository。
+4. 单独补正整数 ID、email 长度、PATCH 的 undefined/null/空对象规则和 keyword 长度；当前 `+id`、PartialType 的 null 跳过和“所有 P2002 都报邮箱冲突”、先查后更新/删除的竞争窗口均需处理。异常含义按实际约束区分，不向外输出原始数据库错误。
+5. 与 02/ADR0004 明确字段、状态映射与身份策略后，再单独实现软删/状态/版本及必要增量迁移；保留当前 name/age/phone/sex 数据，未明确映射前不直接替换为 username/nickname。最后按 03 独立切换统一包装、分页及删除契约。
+
+下方 5.1～5.5 是完整阶段目标；只有前置模型/契约具备后才实施。数据库约束、事务和软删验收需隔离环境，目录和 Swagger 整理不能替代这些证据。
 
 ### 5.1 定义输入与安全输出
 
@@ -100,9 +104,25 @@ return { items, total, page, pageSize };
 
 ## 6. 数据库设计
 
-复用02完整User Schema，无新迁移。本阶段新增软删行为而非临时加列。永久占用username/email，status/删除过滤必需，版本字段只由Service更新。若后续需要恢复用户，必须另定状态/身份冲突/权限恢复规则；本阶段不提供恢复接口。
+目标复用 02 的完整 User Schema，02 模型到位后本阶段不重复迁移。当前 Schema 尚无 deletedAt/版本等目标字段，不能按“无新迁移”直接实现软删；缺失字段和存量数据方案回到 [02 第 6 节](../02-database/implementation.md#6-数据库设计)处理。永久占用 username/email 是 ADR0004 中的目标策略，待明确后实施；版本字段只由 Service 更新。若后续需要恢复用户，必须另定状态/身份冲突/权限恢复规则；本阶段不提供恢复接口。
 
 ## 7. API 设计
+
+### 当前代码契约与本次 Swagger 补充（2026-10-23）
+
+现有实现已移动到 `project/src/modules/users/`，与下方阶段目标存在差异。本次以实际代码添加装饰器和响应模型，不变更业务行为。输入为 `name`（必填，最长 50）、`email`（必填，邮箱格式）、`age`（可选，整数 0..150）；Update 通过 Swagger 的 PartialType 将全部输入字段改为可选。可选字段的现有 IsOptional 会跳过 null，age 文档标记可空；name/email 的 null 与非空数据库约束冲突仍待后续处理，本次不改变校验。
+
+| Method | 路径（前缀 /api/v1） | 当前请求与响应 | 已实现业务异常 |
+| --- | --- | --- | --- |
+| POST | /users | CreateUserDto → 201 User | 400 校验失败、409 邮箱冲突 |
+| GET | /users | page=1、pageSize=10（上限100）、keyword 可选 → 200 `{list,total,page,pageSize}` | 400 校验失败 |
+| GET | /users/:id | id → 200 User | 404 用户不存在 |
+| PATCH | /users/:id | id + UpdateUserDto → 200 User | 400 校验失败、404、409 |
+| DELETE | /users/:id | id → 200 `{message:"删除成功"}`，当前为硬删除 | 404 |
+
+User 响应包含 id/name/email/age/status/phone/sex/createdAt/updatedAt；age/phone/sex 为必然存在但可为 null 的字段，日期在 JSON 中为 date-time 字符串。未 include 的 roles 不列入响应。当前无认证授权，不标记接口需要 Bearer；正整数 ID 校验、软删、public select、统一包装等阶段目标尚未完成。数据库约束和并发行为未在本次验收。
+
+### 阶段目标契约（后续实施）
 
 返回均使用[03包装](../03-api-standards/implementation.md)；User为public select字段，Page为`{items,total,page,pageSize}`。下表认证/权限是05/06后的上线目标；当前阶段仅限本地隔离开发。
 
@@ -135,7 +155,9 @@ curl -i -X PATCH http://localhost:3000/api/v1/users/1 -H "Authorization: Bearer 
 - [ ] PENDING无哈希不可激活；本地管理功能没有被直接对外发布。
 - [ ] Service单测+真实约束集成测试执行并留记录。
 
-验收记录：未执行。
+删除 Swagger 测试文件前的局部验收记录（2026-10-23）：用户 Swagger 契约已通过本地编译及 OpenAPI 生成测试；环境、命令和结果见[阶段 03 验收记录](../03-api-standards/implementation.md#8-验收标准)。验证当前 Create/Update 字段、分页默认值和上限、User 可空字段、列表及删除响应；未执行真实数据库 CRUD、并发约束或本阶段目标验收。随后按用户要求删除本次新增的 Swagger 测试文件，暂不运行测试；现有装饰器及响应模型保留。
+
+移动后静态检查（2026-10-23）：Users 导入层级和模块注册已更新；检查初期生产类型检查、构建及测试代码类型检查通过，未运行测试。随后删除模板文件曾因 AppModule 遗留引用导致类型检查失败；用户已清理引用，最新生产/测试代码类型检查通过，旧 E2E 问候断言现已删除，整体整理未验收；本轮复查生产/测试代码类型检查、构建及定向 ESLint 通过，4 个文件格式检查未通过。完整命令、快照限制与待办见[整理检查记录](../changelog/2026-10-23-002-project-organization.md#目录移动后检查2026-10-23)。
 
 ## 9. 常见问题
 

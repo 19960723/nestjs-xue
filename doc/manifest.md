@@ -1,6 +1,6 @@
 # 项目文档文件清单
 
-更新：2026-10-22。包含新增/改写入口、规划与实施指南、模板、记录和历史归档；阶段 01 已实施并记录验收，阶段 02 已记录依赖安装。历史文件只是归档，不是新实施方案。
+更新：2026-10-23。包含入口、规划与实施指南、模板、记录和历史归档；阶段 01 有历史验收，02～04 已有实现但未完成全部阶段验收。整理方案合入原架构、路线图及阶段文档；历史文件只是归档，不是新实施方案。
 
 ## 根入口与协作规则
 
@@ -46,6 +46,8 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-10-23-002-project-organization.md](changelog/2026-10-23-002-project-organization.md)
+- [doc/changelog/2026-10-23-001-swagger-decorators.md](changelog/2026-10-23-001-swagger-decorators.md)
 - [doc/changelog/2026-10-22-001-prisma-dependencies.md](changelog/2026-10-22-001-prisma-dependencies.md)
 - [doc/changelog/2026-10-21-001-documentation-initialization.md](changelog/2026-10-21-001-documentation-initialization.md)
 - [doc/changelog/2026-10-21-002-initialization.md](changelog/2026-10-21-002-initialization.md)

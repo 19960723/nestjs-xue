@@ -8,4 +8,4 @@
 - [测试方案](../doc/09-testing/implementation.md)
 - [长期变更记录](../doc/changelog/README.md)
 
-阶段 01 已通过本地验收；后续数据库与业务尚未实现。项目基于 [NestJS](https://nestjs.com/)，使用 pnpm 管理依赖。
+阶段 01 已留存本地验收记录；当前已有 Prisma 集成、迁移文件、用户基础 CRUD 与 Swagger 装饰器，数据库业务仍未验收。真实进度以[文档导航](../doc/README.md)为准，后续修改按[整理实施顺序](../doc/00-overview/roadmap.md#当前整理实施顺序)分批执行。项目基于 [NestJS](https://nestjs.com/)，使用 pnpm 管理依赖。

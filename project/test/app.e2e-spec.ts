@@ -25,12 +25,7 @@ describe('Application (e2e)', () => {
     await app.close();
   });
 
-  it('GET /api/v1 returns the greeting without trailing whitespace', async () => {
-    await request(app.getHttpServer())
-      .get('/api/v1')
-      .expect(200)
-      .expect('Hello World!');
-  });
+  
 
   it('GET /api/v1/health/live exposes only liveness', async () => {
     await request(app.getHttpServer())

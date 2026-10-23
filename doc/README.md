@@ -1,6 +1,6 @@
 # 项目技术文档导航
 
-更新：2026-10-22（Asia/Shanghai）。文档体系：已初始化；应用整体：进行中。阶段 01 已完成本地验收；阶段 02 已开始安装依赖，数据库集成与业务未验收。
+更新：2026-10-23（Asia/Shanghai）。文档体系：已初始化；应用整体：进行中。阶段 01 已完成本地验收；阶段 02 已记录依赖安装；当前已有数据库和基础 CRUD 代码，数据库业务未验收；现有接口 Swagger 装饰器已本地验证。
 
 ## 从这里开始
 
@@ -17,17 +17,17 @@
 | 阶段 | 实施文档 | 文档状态 | 功能状态 | 依赖 |
 | --- | --- | --- | --- | --- |
 | 01 | [环境与初始化](01-initialization/implementation.md) | 已更新 | 已验证（本地） | 环境盘点 |
-| 02 | [MySQL与Prisma7](02-database/implementation.md) | 已更新 | 进行中（仅依赖安装） | 01 |
-| 03 | [API规范与可观测性基础](03-api-standards/implementation.md) | 已编写 | 计划中 | 01/02 |
-| 04 | [用户管理CRUD](04-user-management/implementation.md) | 已编写 | 计划中 | 02/03 |
+| 02 | [MySQL与Prisma7](02-database/implementation.md) | 已更新 | 进行中（已有集成代码，数据库未验收） | 01 |
+| 03 | [API规范与可观测性基础](03-api-standards/implementation.md) | 已更新 | 进行中（现有接口 Swagger 已本地验证） | 01/02 |
+| 04 | [用户管理CRUD](04-user-management/implementation.md) | 已更新 | 进行中（已有基础 CRUD，数据库业务未验收） | 02/03 |
 | 05 | [身份认证与会话](05-authentication/implementation.md) | 已编写 | 计划中 | 04 |
-| 06 | [RBAC授权](06-authorization/implementation.md) | 已编写 | 计划中 | 05 |
+| 06 | [RBAC授权](06-authorization/implementation.md) | 已更新 | 计划中（已有基础角色模型，授权未实现） | 05 |
 | 07 | [Redis缓存与共享限流](07-redis/implementation.md) | 已编写 | 计划中 | 04～06 |
 | 08 | [公共能力与审计](08-common/implementation.md) | 已编写 | 计划中 | 02～07 |
-| 09 | [测试质量与CI](09-testing/implementation.md) | 已编写 | 计划中（最小工具已在01验证） | 01～08 |
+| 09 | [测试质量与CI](09-testing/implementation.md) | 已更新 | 计划中（最小工具已在01验证，当前测试执行暂缓） | 01～08 |
 | 10 | [部署与运维](10-deployment/implementation.md) | 已编写 | 计划中 | 07～09 |
 
-状态只用「计划中、进行中、已实现、已验证」描述功能；文档写完不表示对应功能已实现。已验证必须附日期/版本/命令/结果。阶段 01 的版本、启动与质量验收见其第 8 节；环境盘点保留实施前快照与实施后摘要。
+状态只用「计划中、进行中、已实现、已验证」描述功能；文档写完不表示对应功能已实现。已验证必须附日期/版本/命令/结果。阶段 01 的版本、启动与质量验收见其第 8 节；环境盘点保留实施前快照与实施后摘要。历史验收仅覆盖记录当时的代码及范围，后续接入数据库后的启动与 E2E 状态仍需复验；Swagger 局部验证也不代表整个阶段完成。
 
 ## 决策、维护与记录
 
@@ -41,4 +41,8 @@
 
 ## 下一步
 
-[阶段01](01-initialization/implementation.md) 已完成，[阶段02数据库](02-database/implementation.md) 已按用户授权安装 Prisma 依赖；初始化、建库、迁移和数据库模块仍需在相应授权范围内推进。沿用 pnpm、Prisma7/MySQL8.4 与现有 ESM；产品侧需在相关阶段确认身份复用、注册/重置渠道、客户端token存储、部署与备份目标，见[待确认事项](00-overview/project-overview.md#待确认的产品与运维决策)。
+先按[整理实施顺序](00-overview/roadmap.md#当前整理实施顺序)推进：文档校准 → 启动与配置收拢 → 目录移动 → 用户与数据模型调整 → 验证闭环。本次代理仅完成文档更新；用户并行代码进度记录于路线图，仍需逐项验收。已有 Schema、迁移文件、生成客户端和 Prisma 模块应原地调整，不重复初始化或生成业务骨架。迁移应用历史及数据库运行状态待阶段 02 核对验收。
+
+针对 src 当前文件数量，按[最小整理方案](00-overview/architecture.md#src-当前规模的最小整理方案)收拢：根目录保留 main/app.module，业务统一 modules，Prisma 源模块已归入 database/prisma，无需为目录风格再次移动，生成客户端保持原位；只实现当前需要的目录。
+
+沿用 pnpm、Prisma7/MySQL8.4 基线与现有 ESM；产品侧需在相关阶段确认身份复用、注册/重置渠道、客户端 token 存储、部署与备份目标，见[待确认事项](00-overview/project-overview.md#待确认的产品与运维决策)。

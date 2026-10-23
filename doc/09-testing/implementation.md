@@ -1,6 +1,8 @@
 # 阶段 09：测试与代码质量
 
-更新：2026-10-21。文档状态：已编写；功能状态：计划中。工具迁移5.1在01执行；完整分层/CI依赖02～08。5.1 的最小工具迁移已在阶段 01 本地验证：现为 Jest/ESLint/Prettier，27 项单元测试与 5 项 HTTP E2E 通过；其余分层测试、覆盖率门禁和 CI 仍计划中。
+更新：2026-10-23。文档状态：已更新；功能状态：计划中（最小工具迁移已在 01 本地验证）。完整分层/CI 依赖 02～08。阶段 01 当时为 27 项单元测试与 5 项 HTTP E2E 通过，属于历史结果，不代表接入数据库后当前代码已复验；其余分层测试、覆盖率门禁和 CI 仍计划中。
+
+2026-10-23：Swagger 局部测试曾通过，随后按用户要求删除新增测试文件，当前暂不推进或运行测试。保留既有工具配置；下方为恢复验证后的实施要求，文档更新不自动恢复测试执行。历史记录见 [CHG-20261023-001](../changelog/2026-10-23-001-swagger-decorators.md)。
 
 ## 1. 阶段目标
 
@@ -108,6 +110,15 @@ export default {
 - 预期/验证：同真实MySQL隔离级别与adapter执行；refresh重放事务提交后session.revokedAt可查询到；测试失败也close Prisma/Redis，CI没有悬挂连接。
 
 ### 5.4 HTTP E2E与OpenAPI回归
+
+当前边界：现有 `test/app.e2e-spec.ts` 装配完整 AppModule，未替换 PrismaService；AppModule 已导入数据库模块，初始化会构造客户端并尝试连接。setup-env 仅隔离 NODE_ENV/Observe 等，不构成专用测试库保护；不能沿用阶段 01 的通过记录断言当前 E2E 不依赖数据库。
+
+恢复验证后先分清两类 HTTP 测试：
+
+- HTTP 隔离测试：编译 Nest 测试模块前，通过 DI 替换 PrismaService 或具体 Repository，阻止真实数据库构造/连接，仍调用共用 configureApp 验证 Pipe、路由、DTO、状态码及响应。若尚未统一 DATABASE_URL 配置，先完成 02 配置收拢，不借用个人数据库配置。
+- 真实数据库 E2E：使用第 5.3 节显式隔离库，完整装配应用，验证真实约束、事务及业务流程；不得把上面的替身测试当成真实数据库验收。
+
+需要验证 Swagger UI/JSON 注册与关闭行为的测试复用 configureSwagger；仅隔离生成 OpenAPI 的测试不证明工具路由已受访问控制。两类测试使用明确的文件匹配和独立命令/配置，后续落地时回填具体名称，避免同一 E2E 命令隐式连接未知数据库。
 
 - 目标：覆盖整个安全/协议边界。
 - 文件：`project/src/bootstrap/configure-app.ts`（main与test共用，若03已建则更新原文件）、各 `project/test/*.e2e-spec.ts`。

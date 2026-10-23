@@ -1,6 +1,6 @@
 # 阶段 06：RBAC 权限系统
 
-更新：2026-10-21。文档状态：已编写；功能状态：计划中。前置：[05](../05-authentication/implementation.md)。命令默认project/，本阶段完成前不得将用户管理对外开放。
+更新：2026-10-23。文档状态：已更新；功能状态：计划中（已有 Role/UserRole 基础模型，授权行为未实现）。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
 
 ## 1. 阶段目标
 
@@ -35,7 +35,7 @@ Auth Guard先验证身份，PermissionsGuard再从MySQL查未删除ACTIVE用户�
 
 - 目标：可扩展RBAC，不把用户角色硬编码为enum。
 - 文件：修改 `project/prisma/schema.prisma`；新建 `project/prisma/seed-rbac.ts`、`project/scripts/bootstrap-admin.ts`；脚本编译配置后续纳入package。
-- 操作：按第6节建表，给User增加roles关系。种子以code upsert权限/系统角色/关联，重复执行不新增重复项、不覆盖人工创建角色、不自动赋予所有普通用户admin。member/admin设isSystem，不能通过API删除/修改code/admin权限集。
+- 操作：先比对第 6 节目标与已有 Role/UserRole、User.roles，不重复建表或增加同名关系。采用增量方案补齐权限及系统角色字段，并评估字段/主键/外键变化。种子以 code upsert 权限/系统角色/关联，重复执行不新增重复项、不覆盖人工创建角色、不自动赋予所有普通用户 admin。member/admin 设 isSystem，不能通过 API 删除/修改 code/admin 权限集。
 - 初始化管理员：独立一次性命令，从交互输入或临时Secret读取账号/密码，Argon2id哈希，事务创建/确认身份并分配admin；存在同名账号但身份不符立即停止，不静默提权。脚本不放通用默认密码、不自动在每次启动执行。
 - 命令（后续）：`pnpm exec prisma migrate dev --name add_rbac --create-only`，审阅后应用、generate；为seed/bootstrap单独tsc配置编译到`.scripts-dist`再Node运行，不能直接Node执行带Nest装饰器的TS。命令接入后记录具体脚本/结果。
 - 预期/验证：种子两次执行行数不变；无权限授予意外扩大，bootstrap失败不遗留半个管理员；05注册默认角色关联放进同一事务。
@@ -80,7 +80,9 @@ remove(@Param('id', ParseIntPipe) id: number) {
 
 ## 6. 数据库设计
 
-给User增加 `roles UserRole[]`。角色/权限都采用Int自增PK，code唯一；关联表复合PK防重复，反向索引支持“角色有哪些用户/权限有哪些角色”。Restrict防误删已关联实体；解除关联为显式事务操作。
+当前已有 Role、UserRole 和 User.roles；Role 使用数字 status 并有 sort，UserRole 使用自增 id 加 userId/roleId 联合唯一、级联删除。下方为目标，尚无 Permission/RolePermission、enabled/isSystem 和授权模块；不能整体覆盖当前 Schema。缩短 code 长度、status→enabled、主键替换、级联→Restrict 均需评估存量数据、依赖及迁移成本，先与 02 和 ADR0004 明确方案；不为目录整理改变这些约束。
+
+目标角色/权限采用 Int 自增 PK、code 唯一；关联表复合 PK 防重复，反向索引支持“角色有哪些用户/权限有哪些角色”。Restrict 防误删已关联实体；解除关联为显式事务操作。现有关系可在评估后保留等价唯一约束，具体增量方案验收前回填。
 
 ```prisma
 model Role {

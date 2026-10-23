@@ -46,6 +46,8 @@ pnpm 11 的项目构建脚本策略放在 `project/pnpm-workspace.yaml`：对 @p
 
 ## Prisma 7 专用约束
 
+2026-10-23 本地静态差异（非官方版本复核）：当前已存在 Schema、生成客户端、迁移与 PrismaModule，数据库业务未验收；Schema 未显式写出下列全部生成选项，CLI 使用 DATABASE_URL、运行时仍使用独立数据库键，build 未串联 generate。以下为目标兼容约束，待按[阶段 02](../02-database/implementation.md)收拢；本次未更换版本、安装依赖或查询新的官方元数据。历史“安装不代表生成”的表述仅限定当时验收范围。
+
 2026-10-22 按用户授权安装：prisma 7.10.1 为开发依赖（CLI/迁移工具），@prisma/client 7.10.1 与 @prisma/adapter-mariadb 7.10.1 为生产依赖（客户端运行库/MySQL 驱动适配器）。npm 官方元数据及安装包声明已核对：CLI/Client 的 Node engines 为 ^20.19 / ^22.12 / >=24.0，TypeScript peer >=5.4.0，当前 Node24.18.0/TS6.0.3 满足；adapter 未声明 engines/peers。CLI 的 better-sqlite3 peer 可选，本项目不额外安装其他数据库驱动。选用无预发布后缀的精确 7.10.1；registry latest 当前为 8 RC，不随标签升级。
 
 项目级 allowBuilds 仅新增批准 prisma 的 Node 版本预检与 @prisma/engines 的引擎准备脚本；@scarf/scarf 1.4.0 通过 swagger-ui-dist 间接引入，安装统计脚本显式设为 false。未开放全局脚本许可。检查结果见 [CHG-20261022-001](../changelog/2026-10-22-001-prisma-dependencies.md)；安装不代表客户端已生成或数据库可用。

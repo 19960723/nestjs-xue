@@ -2,7 +2,7 @@
 
 - 日期：2026-10-21
 - 状态：提议
-- 确认记录：待实施时确认；当前仅规划
+- 确认记录：完整边界方案仍待确认；2026-10-23 已有 Users/Prisma 模块及整理文档，目录、显式依赖与 Repository 尚未整体落实，不据此将本 ADR 标为已接受
 - 关联：[架构](../00-overview/architecture.md)、[路线图](../00-overview/roadmap.md)
 
 ## 背景与约束
@@ -23,8 +23,10 @@
 
 ## 影响与迁移
 
-新增模块按阶段生成，不移动/重构当前用户修改。跨模块通过导出Service和明确的tx协作接口，禁止循环import。MySQL单事务保留一致性；Redis可选展示缓存。未来如需拆服务，先有明确容量/发布/隔离需求及新ADR。
+新增模块按阶段生成；当前已存在的 Users/Prisma 按[整理边界](../00-overview/architecture.md#目录整理边界待用户实施)原地移动和修正导入，不重复生成、不覆盖用户修改。目录移动不夹带业务变化。跨模块通过导出 Service 和明确的 tx 协作接口，禁止循环 import。MySQL 单事务保留一致性；Redis 可选展示缓存。未来如需拆服务，先有明确容量/发布/隔离需求及新 ADR。
+
+2026-10-23 目录核对补充：当前用户选择 modules/users 与 database/prisma，相关导入已更新并通过类型/构建/ESLint 检查；采用现有数据库专用目录，不把此前 infrastructure/common 的可选布局当作强制要求。common/shared 当前为空，后续公共能力使用单一约定即可。完整业务边界尚未落实，本 ADR 仍为提议。
 
 ## 验证与重新评估
 
-检查Module imports/exports、Repository是否被跨模块直接写入、Service单测能否用DI fake隔离。当前未实施，不能标已验证。
+检查 Module imports/exports、Repository 是否被跨模块直接写入、Service 单测能否用 DI fake 隔离。当前已有 UsersService 直接使用全局 PrismaService，完整边界未落实，不能标已验证。

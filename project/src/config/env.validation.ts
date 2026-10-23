@@ -10,7 +10,7 @@ export const LOG_LEVELS = [
   'verbose',
 ] as const satisfies readonly LogLevel[];
 
-/** 校验后的配置类型：PORT/OBSERVE_ENABLED 已转换为数字/布尔值。 */
+/** 校验后的配置类型：PORT/布尔开关已转换为数字/布尔值。 */
 export interface Environment extends Record<string, unknown> {
   NODE_ENV: 'development' | 'test' | 'production';
   HOST: '127.0.0.1' | '0.0.0.0';
@@ -19,6 +19,8 @@ export interface Environment extends Record<string, unknown> {
   OBSERVE_ENABLED: boolean;
   OBSERVE_APP_KEY?: string;
   OBSERVE_APP_SECRET?: string;
+  SWAGGER_ENABLE: boolean;
+  SWAGGER_PATH: string;
 }
 
 function enumValue<T extends string>(
@@ -70,6 +72,18 @@ export function validateEnv(env: Record<string, unknown>): Environment {
     }
   }
 
+  // Swagger 默认关闭；路径允许缺省，但显式传入时必须是非空字符串。
+  const swaggerEnable =
+    enumValue('SWAGGER_ENABLE', env.SWAGGER_ENABLE ?? 'false', [
+      'true',
+      'false',
+    ]) === 'true';
+  const swaggerPathRaw = env.SWAGGER_PATH ?? 'api/docs';
+  if (typeof swaggerPathRaw !== 'string' || !swaggerPathRaw.trim()) {
+    throw new Error('SWAGGER_PATH 必须是非空字符串');
+  }
+  const swaggerPath = swaggerPathRaw.trim();
+
   // 保留其他配置键供后续阶段使用，仅覆盖本阶段已校验和规范化的字段。
   return {
     ...env,
@@ -84,5 +98,7 @@ export function validateEnv(env: Record<string, unknown>): Environment {
       typeof env.OBSERVE_APP_SECRET === 'string'
         ? env.OBSERVE_APP_SECRET
         : undefined,
+    SWAGGER_ENABLE: swaggerEnable,
+    SWAGGER_PATH: swaggerPath,
   };
 }

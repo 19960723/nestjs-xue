@@ -5,6 +5,8 @@
 - 确认记录：2026-10-22 用户授权安装三个 Prisma 7.10.1 依赖，已安装；MySQL、生成器、迁移与模块实施仍未验收，完整架构决策保留提议状态
 - 关联：[阶段02](../02-database/implementation.md)、[技术栈](../00-overview/tech-stack.md)
 
+2026-10-23 静态补充：Schema、两份迁移文件、生成客户端和 PrismaModule/Service 已存在；实际 MySQL 版本、迁移应用和数据行为仍待确认。当前运行时尚未与 CLI 统一连接配置，build 未串联 generate；差异与增量收拢方案见阶段 02。本次仅校正文档，不重写既有迁移，不改变本 ADR 的提议状态。
+
 ## 背景与约束
 
 项目已有Nest12/TS6/NodeNext/ESM。用户要求MySQL8.x，旧笔记的prisma-client-js、schema URL和无adapter构造方式与所选Prisma7路径不一致。Prisma8当前官方仍标RC，而且CLI latest可能已指向8。

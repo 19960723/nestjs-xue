@@ -1,6 +1,20 @@
 # 阶段 02：数据库与 Prisma 集成
 
-更新：2026-10-22。文档状态：已更新；功能状态：进行中（本次仅安装依赖，数据库集成未验收）。前置：[01](../01-initialization/implementation.md)。命令默认在 `project/`；建库、初始化与迁移仍是后续实施动作。
+更新：2026-10-23。文档状态：已更新；功能状态：进行中（已有集成代码、Schema 与迁移文件，数据库业务未验收）。前置：[01](../01-initialization/implementation.md)。命令默认在 `project/`；除验收记录外均为后续示例，不重复初始化现有项目。
+
+2026-10-23 静态盘点补充：当前已存在 Schema、迁移文件、生成客户端及 PrismaModule/Service；2026-10-22 记录中的“仅安装依赖”描述的是当时实施范围，不代表当前仅有依赖文件。同日 Swagger 任务未连接数据库、未执行迁移或生成客户端；现有数据库实现与本阶段目标的差异及实际运行状态仍待后续核对验收。
+
+当前代码与目标的具体差异：
+
+| 范围 | 当前事实 | 待用户实施/确认 |
+| --- | --- | --- |
+| CLI/runtime 配置 | `prisma7.config.ts` 读 DATABASE_URL；PrismaService 读 DATABASE_HOST/PORT/USERNAME/PASSWORD/NAME | 统一使用经校验的 DATABASE_URL，集中解析 adapter；不读取或记录真实连接值 |
+| 模块 | `src/database/prisma/` 内为全局 PrismaModule；Users 依赖全局注入 | 目录及导入已调整；显式 imports 与移除全局作用域另批处理，复用单个 Provider |
+| 生成/构建 | Schema 已用 prisma-client，输出 src/generated/prisma；build 仅 nest build，无 prisma:generate 脚本 | 显式生成选项，串联 generate/build；确认干净检出可构建 |
+| 模型/迁移 | User、Role、UserRole；两份迁移文件存在 | 当前与目标字段差异见第 6 节；迁移应用情况、存量数据与真实 MySQL 版本待确认 |
+| 生命周期 | 有连接、断开及日志代码 | 连通、失败路径、资源释放和事务仍待隔离环境验收 |
+
+本次仅更新文档，未执行配置变更、generate、迁移或数据库检查。
 
 ## 1. 阶段目标
 
@@ -51,8 +65,8 @@ dotenv18.0.8已存在，无需重复引入；adapter已包含驱动依赖，应�
 ### 5.2 初始化 Prisma7 的专用配置与生成器
 
 - 目标：CLI配置、源码、编译产物形成一致链路。
-- 文件：新建 `project/prisma7.config.ts`、`project/prisma/schema.prisma`，修改 package scripts 与ignore。
-- 操作：确认不存在历史 schema 后手动创建；如果使用CLI初始化，只调用已安装CLI `pnpm exec prisma init --datasource-provider mysql --output ../src/generated/prisma`，已有.env时先保留内容，不覆盖。
+- 文件：更新已有 `project/prisma7.config.ts`、`project/prisma/schema.prisma`，修改 package scripts 与 ignore。
+- 操作：当前已有配置、Schema、迁移和生成目录，不再运行 prisma init，不覆盖 .env。下方为目标配置，逐项与现有实现比对后调整；保留历史迁移，模型变化按第 5.4 节追加。
 
 ```ts
 // project/prisma7.config.ts
@@ -88,7 +102,8 @@ datasource db {
 ### 5.3 创建数据库单例 Provider
 
 - 目标：Nest DI管理客户端与关闭。
-- 文件：新建 `project/src/infrastructure/database/database-options.ts`、`prisma.service.ts`、`prisma.module.ts`，修改 AppModule。
+- 文件：当前已有 service/module 位于 `project/src/database/prisma/`，目录移动已完成；后续在同目录新增 `database-options.ts` 收拢连接配置，不重新生成 PrismaModule。配置与模块作用域调整分别提交。
+- 当前导入核对见[架构最小整理方案](../00-overview/architecture.md#本轮目录与导入核对)。保留 database/prisma 选择，不再为目录风格移动到 common 或 infrastructure；database-options.ts 随连接配置收拢创建，Schema/迁移仍放 project/prisma。
 - 操作：database-options读取经验证URL，仅允许已支持的选项，明确拒绝静默丢弃的query参数。普通本地连接核心映射如下（生产TLS额外按10节配置）：
 
 ```ts
@@ -104,7 +119,7 @@ const adapter = new PrismaMariaDb({
 ```
 
 ```ts
-// project/src/infrastructure/database/prisma.service.ts
+// project/src/database/prisma/prisma.service.ts
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '../../generated/prisma/client.js';
@@ -128,8 +143,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
 - 目标：以SQL为可审阅的数据变更历史。
 - 文件：`project/prisma/schema.prisma`、`project/prisma/migrations/<时间>_init_user/migration.sql`；验证记录写本阶段与changelog。
-- 操作：采用第6节模型；开发库确认隔离且可回滚后才生成。初始库collation选 `utf8mb4_0900_ai_ci`；用户名限定小写ASCII，邮箱按本项目规则trim/lowercase，不把URL编码误当身份归一化。唯一性最终由数据库约束兜底。
-- 命令（会写库）：`pnpm exec prisma migrate dev --name init_user --create-only --config prisma7.config.ts`；审阅SQL后 `pnpm exec prisma migrate dev --config prisma7.config.ts`；再generate。create-only也可能访问/修改开发shadow库，遇到reset提示立即停止。
+- 操作：当前已有迁移，先核对应用历史、实际表结构和存量数据，再为第 6 节目标制定增量方案；不直接替换 Schema 后生成新“初始迁移”。初始空库的目标 collation 为 `utf8mb4_0900_ai_ci`，现有 SQL 为 `utf8mb4_unicode_ci`，差异需评估比较/唯一性影响，不能仅为对齐文档改写旧 SQL。用户名限定小写 ASCII，邮箱按本项目规则 trim/lowercase；唯一性由数据库约束兜底。
+- 命令（会写库，仅供未来确认隔离的全新空项目参考，当前项目不得直接照跑）：`pnpm exec prisma migrate dev --name init_user --create-only --config prisma7.config.ts`；审阅 SQL 后 `pnpm exec prisma migrate dev --config prisma7.config.ts`；再 generate。当前项目应在盘点后采用描述本次变化的增量迁移名；create-only 也可能访问/修改开发 shadow 库，遇到 reset 提示立即停止。
 - 预期/验证：隔离空库 `migrate deploy` 可从零重建；两次插入同账号第二次触发唯一约束；迁移文件不包含无关DROP。不要自动覆盖已有非空数据库，已有表需先调研baseline并另写ADR。
 
 ### 5.5 验证事务与错误边界
@@ -142,7 +157,17 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
 ## 6. 数据库设计
 
-初始表 `users`：Int自增PK；username/email唯一（含软删记录仍保留），status+deletedAt+id组合索引用于列表；外键在05/06增量增加。时间为UTC DateTime(3)。不设Role枚举锁死扩展。
+### 当前模型与迁移事实
+
+当前 User 字段为 id/name/email/age/status/phone/sex/createdAt/updatedAt；email 长度 100、唯一，phone 可空且唯一，status 为数字（默认 1）。Role、UserRole 已存在，UserRole 对 userId/roleId 联合唯一，外键为级联删除；尚无权限表和授权模块。User 无 username、passwordHash、nickname、tokenVersion、permissionVersion、deletedAt。
+
+已有迁移为 `20261022071222_init_users`、`20261022152735_create_role_userrole`，SQL 使用 utf8mb4_unicode_ci。文件存在不证明已应用，也不证明与真实库无漂移；应用情况和现有数据待确认。
+
+### 目标模型与增量调整要求
+
+下方是阶段目标，尚未落实，不可整体覆盖当前 Schema。先明确 name 与 username/nickname 的业务含义及回填映射、age/phone/sex 的保留策略、数字状态映射、邮箱长度与归一化冲突处理，再设计字段新增、回填、约束及索引切换；保留已有 Role/UserRole。软删和硬删除的关系、级联行为需与 04/06 及 ADR0004 同步评审，未确认前不更改数据或既有迁移。
+
+目标 `users`：Int 自增 PK；username/email 唯一（含软删记录仍保留），status+deletedAt+id 组合索引用于列表；05/06 后续只追加缺失的会话/权限结构和关系，不重复创建已有角色表。时间为 UTC DateTime(3)。不设 Role 枚举锁死扩展。
 
 ```prisma
 enum UserStatus {
@@ -184,7 +209,7 @@ passwordHash可空只为管理端先建PENDING资料；不能用空字符串或�
 - [ ] 唯一约束、事务回滚、连接失败与关闭验证通过。
 - [ ] Node直接运行dist成功；生产TLS和专用账户要求已记录。
 
-数据库集成验收：未执行。MySQL实际版本、账户权限和连通性待用户确认；本次无数据库操作。2026-10-22 的依赖安装与检查单独记录于 [CHG-20261022-001](../changelog/2026-10-22-001-prisma-dependencies.md)，不能据此勾选完整阶段验收项。
+数据库集成验收：未执行。MySQL 实际版本、账户权限、迁移应用历史、存量数据和连通性待确认；本次仅静态盘点，未连接数据库或运行测试。2026-10-22 的依赖安装与检查单独记录于 [CHG-20261022-001](../changelog/2026-10-22-001-prisma-dependencies.md)，2026-10-23 的 Swagger 局部构建记录见 [CHG-20261023-001](../changelog/2026-10-23-001-swagger-decorators.md)，均不能据此勾选完整数据库阶段验收项。
 
 ## 9. 常见问题
 
@@ -200,4 +225,4 @@ passwordHash可空只为管理端先建PENDING资料；不能用空字符串或�
 
 ## 10. 后续扩展
 
-[03](../03-api-standards/implementation.md) 统一映射数据库异常；[04](../04-user-management/implementation.md) 围绕User实现查询/软删；05增加会话和密码重置，06增加角色关联，均为增量迁移。连接池容量按应用副本数×每副本连接数与DB容量评估后调整。
+[03](../03-api-standards/implementation.md) 统一映射数据库异常；[04](../04-user-management/implementation.md) 补齐 User 查询/软删；05 增加会话和密码重置，06 在已有角色关联基础上补权限与授权行为，均为增量迁移。连接池容量按应用副本数×每副本连接数与 DB 容量评估后调整。

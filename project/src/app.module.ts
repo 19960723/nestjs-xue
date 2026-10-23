@@ -1,19 +1,15 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, NestApplicationOptions } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
 import { LOG_LEVELS, validateEnv } from './config/env.validation.js';
 import type { Environment } from './config/env.validation.js';
 import { HealthModule } from './modules/health/health.module.js';
-import { PrismaModule } from './prisma/prisma.module.js';
-import { UsersModule } from './users/users.module.js';
+import { PrismaModule } from './database/prisma/prisma.module.js';
+import { UsersModule } from './modules/users/users.module.js';
 
 // 固定的模块依赖在此声明；环境配置与可选 Observe 由下方工厂按需加入。
 @Module({
   imports: [HealthModule, PrismaModule, UsersModule],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}
 

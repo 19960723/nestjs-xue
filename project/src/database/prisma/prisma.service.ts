@@ -1,10 +1,13 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
-import { PrismaClient } from '../generated/prisma/client.js';
+import { PrismaClient } from '../../generated/prisma/client.js';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+
+    private readonly logger = new Logger(PrismaService.name)
+
     constructor(config: ConfigService) {
         const adapter = new PrismaMariaDb({
             host: config.getOrThrow<string>('DATABASE_HOST'),
@@ -21,9 +24,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   async onModuleInit() {
     await this.$connect();
+    this.logger.log('Prisma 数据库连接成功');
   }
 
   async onModuleDestroy() {
     await this.$disconnect();
+    this.logger.log('Prisma 数据库连接已断开');
   }
 }
