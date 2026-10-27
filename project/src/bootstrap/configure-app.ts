@@ -1,13 +1,13 @@
 import { VersioningType, ValidationPipe } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 
-/** 在 listen/init 前调用，确保实际应用与 E2E 使用相同的 HTTP 路径规则。 */
+/** 在 listen/init 前调用，确保实际应用与 E2E 使用相同的 HTTP 规则。 */
 export function configureApp(app: INestApplication): void {
   app.setGlobalPrefix('api');
-  // 组合全局前缀后得到 /api/v1/...；后续 Pipe、过滤器等共用规则也在此接入。
+  // 组合全局前缀后得到 /api/v1/...。
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
 
-  // 验证dto
+  // DTO 转换和字段校验由实际启动与 E2E 共用。
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
