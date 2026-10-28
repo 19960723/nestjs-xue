@@ -51,6 +51,7 @@ export class RolesService {
   }
 
   update(id: number, updateRoleDto: UpdateRoleDto) {
+    void updateRoleDto;
     return `This action updates a #${id} role`;
   }
 

@@ -11,9 +11,7 @@ import { QueryUserDto } from './dto/query-user.dto.js';
 
 @Injectable()
 export class UsersService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   // 处理唯一字段冲突
   private handleWriteError(error: unknown): never {
@@ -41,7 +39,7 @@ export class UsersService {
   // 分页查询
   async findAll(query: QueryUserDto) {
     const { page, pageSize, keyword } = query;
-    
+
     const where: Prisma.UserWhereInput = keyword
       ? {
           OR: [

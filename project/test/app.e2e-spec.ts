@@ -25,8 +25,6 @@ describe('Application (e2e)', () => {
     await app.close();
   });
 
-  
-
   it('GET /api/v1/health/live exposes only liveness', async () => {
     await request(app.getHttpServer())
       .get('/api/v1/health/live')
