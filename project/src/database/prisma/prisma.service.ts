@@ -16,6 +16,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             password: config.getOrThrow<string>('DATABASE_PASSWORD'),
             database: config.getOrThrow<string>('DATABASE_NAME'),
             connectionLimit: 5,
+            
+            // 允许从 MySQL 服务端获取 RSA 公钥
+            allowPublicKeyRetrieval: true
         });
         super({
             adapter,
