@@ -1,6 +1,6 @@
 # 阶段 06：RBAC 权限系统
 
-更新：2026-10-23。文档状态：已更新；功能状态：计划中（已有 Role/UserRole 基础模型，授权行为未实现）。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
+更新：2026-10-30。文档状态：已更新；功能状态：RBAC 计划中（角色资源 CRUD 已实现，类型/构建通过，数据库行为未验收，授权未实现）。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
 
 ## 1. 阶段目标
 
@@ -67,6 +67,58 @@ remove(@Param('id', ParseIntPipe) id: number) {
 - 命令：单测/集成测试空数组清空、无效ID、重复、超量、跨权限授予、删除有用户角色、系统角色操作。
 - 预期/验证：关联唯一、外键有效、失败无部分关联；已软删用户不能分配角色。
 
+#### 5.3.1 当前角色 DTO 完善（2026-10-26）
+
+用户授权完善 `modules/roles/dto/create-role.dto.ts`。当次已有 RolesController/Service 骨架，Service 返回占位字符串；该次仅完善创建 DTO 及更新 DTO 的继承校验，不实施角色 CRUD、查询 DTO、权限或数据库迁移。后续创建逻辑见第 5.3.3 节。现有 Schema 的 name/code 长度为 50、description 为 255，仍使用数字 status/sort；本节记录当前契约，上方小写 code/长度 32、name 长度 64、enabled 及 code 创建后不可修改属于未来 RBAC 目标，尚未实施。
+
+| 字段 | 当前输入规则 | 缺省与空值 |
+| --- | --- | --- |
+| name | 字符串，去除首尾空白后长度 1～50 | 创建必填，禁止 null、空串及纯空白 |
+| code | 字符串，去除首尾空白后长度 2～50，匹配 `^[A-Za-z][A-Za-z0-9_-]{1,49}$`；保持大小写 | 创建必填，禁止 null；创建时由数据库唯一索引和 Service 冲突映射保证 |
+| description | 字符串，去除首尾空白后最长 255 | 可省略、null 或空串；null 表示清空 |
+| status | JSON 整数，仅 0（禁用）或 1（启用） | 可省略，数据库默认 1；禁止 null、字符串和布尔值 |
+| sort | JSON 整数，范围 0～2147483647（MySQL Int 上界） | 可省略，数据库默认 0；禁止 null、字符串和布尔值 |
+
+创建 DTO 不设置属性默认值，避免 PartialType 继承后让 PATCH 隐式写入 status/sort。更新 DTO 使用 `PartialType(CreateRoleDto, { skipNullProperties: false })`，允许省略字段，仅 description 允许 null。当前仍允许更新 code 和空 PATCH；code 不可变、空 PATCH 拒绝等行为随完整角色业务另行实施。Swagger 与上述运行时约束保持一致，默认值由第 5.3.3 节创建逻辑交给数据库处理。
+
+实现状态：上述 DTO 已实现，类型检查、构建及本次 DTO 的 ESLint/Prettier 通过；按阶段 09 现有约定暂不新增或执行测试，运行时及 HTTP 行为待验证。影响为更严格的输入校验及新增可选字段，无依赖、Schema 或迁移变更。证据见第 8 节及 [CHG-20261026-001](../changelog/2026-10-26-001-role-dto-validation.md)。
+
+#### 5.3.2 当前角色查询 DTO 完善（2026-10-26）
+
+用户后续授权完善空文件 `modules/roles/dto/query-role.dto.ts`，已导出 `QueryRoleDto`。2026-10-30 已接入列表 Controller/Service。沿用当前用户列表分页默认 1/10，不提前切换阶段 03 目标的 1/20。
+
+| 字段 | 输入规则 | 缺省与空值 |
+| --- | --- | --- |
+| page | 整数 1～2147483647 | 省略为 1，拒绝 null |
+| pageSize | 整数 1～100 | 省略为 10，拒绝 null |
+| keyword | 字符串，trim 后最长 50，用于后续按角色名称或编码模糊搜索 | 可省略；空串/纯空白表示不筛选，拒绝 null |
+| status | 整数，仅 0（禁用）或 1（启用） | 可省略，表示不筛选；拒绝 null |
+
+数字字符串仅接受十进制数字字符，再交给整数和范围校验；不将空串、空白、小数、科学计数法、十六进制、布尔值、数组或对象强制转换成合法数字。不新增排序查询参数；列表固定 `sort` 升序、`id` 降序。keyword 非空时按 name/code 模糊匹配，status 传入时精确筛选，语义见第 5.3.4 节。
+
+实现状态：QueryRoleDto 已实现并已接入列表；类型检查、构建及目标文件静态检查见第 8 节。运行时、OpenAPI 生成及数据库行为未验证，测试继续按阶段 09 约定暂缓。完整 RBAC 仍计划中。
+
+#### 5.3.3 当前创建角色逻辑（2026-10-26）
+
+用户授权完善 `modules/roles/roles.service.ts` 的 create。已注入现有 PrismaService，RolesModule 显式导入同一个 PrismaModule；保持现有全局作用域，不新增 Repository 或重复注册客户端。当时仅实现创建；列表、详情、更新、删除见第 5.3.4 节，授权仍未实现。
+
+- HTTP 输入校验和 trim 继续由 CreateRoleDto 与全局 ValidationPipe 承担，Service 显式只写 name/code/description/status/sort，不接受 id、时间或关联关系的批量赋值。
+- 按当前 Schema/迁移，只有 code 唯一，name 可重复；原代码注释中的 name 唯一不是已实现约束，本次不改表或增加此规则。直接 create 并捕获生成客户端的 PrismaClientKnownRequestError/P2002，映射为 `ConflictException('角色编码已存在')`（HTTP 409），以唯一索引保障并发；其他异常原样抛出，不误报为编码冲突。
+- description 省略时使用数据库的可空行为，status/sort 省略时使用数据库默认值 1/0，显式 0 必须保留。成功返回白名单 id/name/code/description/status/sort/createdAt/updatedAt，不返回关联 users。
+- 检查时本地生成客户端只含 User，与已有 Schema 的 Role/UserRole 不一致；已使用已安装的 Prisma 7.10.1 按现有 Schema 重新 generate。该步骤仅更新忽略入库的本地代码，不加载个人环境文件、不连接数据库、不创建或应用迁移。
+
+功能状态：创建逻辑已实现，列表/详情/更新/删除见第 5.3.4 节。创建已存在的真实表是否可用、重复/并发编码、默认值和 HTTP 行为均须隔离数据库验收，不能凭静态检查判定通过。证据见第 8 节及 [CHG-20261026-002](../changelog/2026-10-26-002-role-create.md)。
+
+#### 5.3.4 当前角色资源 CRUD（2026-10-30）
+
+用户授权补齐角色列表、详情、更新、删除，对齐已有创建链路，不实施权限 Guard、用户-角色分配、Repository 或数据库迁移。PrismaModule 显式导入；公开字段复用 `rolePublicSelect`。仍无认证，接口仅限隔离本地。
+
+- `GET /roles` 接入 `QueryRoleDto`：keyword 非空时 name/code `contains`，status 传入时精确匹配；分页默认 1/10；返回 `{list,total,page,pageSize}`，与当前用户列表字段一致，不提前改为 `items`。
+- `GET /roles/:id`、`PATCH /roles/:id`、`DELETE /roles/:id` 使用 `ParseIntPipe`；不存在返回 404「角色不存在」。
+- 更新显式写入 name/code/description/status/sort，undefined 交给 Prisma 跳过；仍允许改 code 和空 PATCH。code 冲突 409。
+- 删除在同一事务内确认角色存在且 `user_roles` 计数为 0 后物理删除；已分配则 409「角色已分配给用户，无法删除」，避免当前 Cascade 外键误清关联。成功返回 `{message:'删除成功'}`，未切换阶段 03 的 `data:null`。
+- 删除空文件 `dto/role.vo.ts`。未加权限装饰器，完整 RBAC 仍计划中。
+
 ### 5.4 保护管理员与即时撤权
 
 - 目标：保持系统可管理且变更立即生效。
@@ -129,6 +181,10 @@ model RolePermission {
 
 ## 7. API 设计
 
+当前角色资源接口已实现创建、分页列表、详情、更新和未分配删除，未统一包装、无认证/权限 Guard。公开字段为 id/name/code/description/status/sort/createdAt/updatedAt。创建/更新 DTO 见第 5.3.1 节，查询 DTO 见第 5.3.2 节。实际数据库及 HTTP 行为尚未验收。
+
+以下认证、权限、`enabled/isSystem` 与 `data:null` 删除体为完整 RBAC 的目标契约，不代表当前已实现。
+
 前缀/api/v1，均要求Access；Role公开字段为id/code/name/description/enabled/isSystem/createdAt/updatedAt，Permission为id/code/name。返回按03包装。所有接口还可能503依赖不可用。
 
 | 接口名称 | Method/URL | 请求 | data | 正常码 | 异常码 | 权限 |
@@ -158,7 +214,46 @@ curl -i -X PUT http://localhost:3000/api/v1/users/2/roles -H "Authorization: Bea
 - [ ] 撤权下一请求立即403；授权不依赖JWT中的旧role。
 - [ ] 系统角色/自修改/最后管理员保护覆盖单条和批量以及并发场景。
 
-验收记录：未执行。
+完整 RBAC 验收：未执行。
+
+2026-10-26 角色 DTO 局部检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、TypeScript 6.0.3；运行目录 `project/`。
+
+- `pnpm exec tsc --noEmit --incremental false -p tsconfig.build.json`：退出 0。
+- `pnpm run build`：退出 0，使用已有本地依赖及生成客户端。
+- `pnpm exec eslint src/modules/roles/dto/create-role.dto.ts src/modules/roles/dto/update-role.dto.ts --max-warnings=0`：退出 0。
+- `pnpm exec prettier --check src/modules/roles/dto/create-role.dto.ts src/modules/roles/dto/update-role.dto.ts`：退出 0。
+
+未新增或执行 Jest、DTO 运行时测试、HTTP、数据库、权限或 OpenAPI 生成验收；未读取真实环境配置，未安装依赖、generate、迁移或部署。当前仅 DTO 已实现且静态检查通过，不将阶段 06 标为已实现或已验证。
+
+同日后续 QueryRoleDto 局部检查：环境及运行目录同上，以下命令均退出 0：
+
+- `pnpm exec tsc --noEmit --incremental false -p tsconfig.build.json`
+- `pnpm run build`
+- `pnpm exec eslint src/modules/roles/dto/query-role.dto.ts --max-warnings=0`
+- `pnpm exec prettier --check src/modules/roles/dto/query-role.dto.ts`
+
+仅上述静态检查与构建已验证；列表 Controller/Service 尚未接入查询 DTO，未执行测试或数据库操作。记录合并至 [CHG-20261026-001](../changelog/2026-10-26-001-role-dto-validation.md)。
+
+同日后续创建角色局部检查：环境同上。运行目录 `/private/tmp`，执行已安装的 `project/node_modules/.bin/prisma generate --schema <仓库绝对路径>/project/prisma/schema.prisma`，退出 0，生成 Prisma Client 7.10.1（含 Role/UserRole）；未加载项目配置或个人环境文件。生成目录仍忽略入库。
+
+运行目录 `project/`：
+
+- `pnpm exec tsc --noEmit --incremental false -p tsconfig.build.json`：退出 0。
+- `pnpm run build`：退出 0。
+- `pnpm exec prettier --check src/modules/roles/roles.service.ts src/modules/roles/roles.module.ts`：退出 0。
+- `pnpm exec eslint src/modules/roles/roles.service.ts src/modules/roles/roles.module.ts --max-warnings=0`：退出 1，仅剩原有 updateRoleDto 未使用；修改前同范围有 createRoleDto/updateRoleDto 两处未使用错误。未更改无关 update 占位逻辑或关闭规则。
+
+未执行 Jest、HTTP、真实数据库连通/写入/并发、迁移或部署。创建代码已实现，运行与数据库行为未验证，完整 RBAC 仍计划中。
+
+2026-10-30 角色资源 CRUD 局部检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、TypeScript 6.0.3；运行目录 `project/`。以下命令均退出 0：
+
+- `pnpm exec tsc --noEmit --incremental false -p tsconfig.build.json`
+- `pnpm run build`（使用已有本地生成客户端）
+- `pnpm exec eslint src/modules/roles --max-warnings=0`
+- `pnpm exec prettier --check src/modules/roles`
+- 仓库根目录 `git diff --check`
+
+未执行 Jest、HTTP、数据库连接/写入、迁移、generate 或部署。角色资源 CRUD 代码已实现，运行与数据库行为未验证，不将阶段 06 标为已实现或已验证。证据见 [CHG-20261030-001](../changelog/2026-10-30-001-role-resource-crud.md)。
 
 ## 9. 常见问题
 

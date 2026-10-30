@@ -1,6 +1,6 @@
 # 阶段 03：基础接口规范
 
-更新：2026-10-23。文档状态：已更新；功能状态：进行中（现有接口 Swagger 装饰器已本地验证，其余规范未完成）。前置：[01](../01-initialization/implementation.md)、[02](../02-database/implementation.md)。命令默认在 project/；仅第 8 节本次验收记录列出的命令已执行，其余是后续实施示例。
+更新：2026-10-23。文档状态：已更新；功能状态：进行中（Swagger 装饰器有历史局部验收；bootstrap 整理已实现并通过类型/构建/静态质量检查，运行验收暂缓，其余规范未完成）。前置：[01](../01-initialization/implementation.md)、[02](../02-database/implementation.md)。命令默认在 project/；仅第 8 节验收记录列出的命令已执行，其余是后续实施示例。
 
 ## 1. 阶段目标
 
@@ -125,16 +125,16 @@ export class PaginationQueryDto {
 
 - 目标：DTO、错误响应、认证和分页在文档可见。
 - 文件：当前 `project/src/bootstrap/configure-swagger.ts` 已从 main 提取并接线，后续完善配置与日志；更新 `config/env.validation.ts`、`.env.example`、main 和文档引用。不另建 config/swagger.ts；配置目录维护输入校验，bootstrap 维护应用接线。现有 DTO/Controller 装饰器保留，OpenAPI 测试恢复后再补。
-- 当前进度：用户已实现 SWAGGER_ENABLE 显式布尔转换、缺省 false，以及 SWAGGER_PATH 非空字符串校验；configureSwagger 已在 main 调用。main 的重复文档地址日志已被用户注释，configureSwagger 内日志仅在开关启用时打印；本轮只静态确认，未运行开关行为验收。未运行工具路由/开关测试，不据此标记阶段完成。
+- 当前进度：用户已实现 SWAGGER_ENABLE 显式布尔转换、缺省 false，以及 SWAGGER_PATH 非空字符串校验；configureSwagger 已在 main 调用。本次 bootstrap 整理已移除 helper 日志，configureSwagger 只注册并返回 uiPath，main 在 listen 成功且启用时统一输出实际地址；类型/构建/静态质量通过，未运行开关行为验收。未运行工具路由/开关测试，不据此标记阶段完成。
 - 操作：统一采用目标键 SWAGGER_ENABLED、SWAGGER_PATH；将开关显式解析为 boolean，未配置默认 false，路径非空且格式合法。将旧 SWAGGER_ENABLE 替换到所有读取处及示例，不允许旧值静默失效；同步启动环境后再移除旧键。并行修改已移除临时 console.log；后续日志使用同一已校验路径，仅启用时输出，已修正 swagger.path 与 SWAGGER_PATH 混用，保留同一配置来源。
 - 契约分批：提取函数先保留当前 UI `/api/docs`、JSON `/api/docs-json`；显式切换目标 `jsonDocumentUrl: 'api/openapi.json'` 另作 API 契约变化，更新调用方与验证记录。配置调用放在 init/listen 之前；main 和需要验证工具路由的 HTTP 测试调用同一个 configureSwagger，关闭时不注册 UI/JSON。
 - 目标文档：保留 DocumentBuilder 标题/版本/addBearerAuth 与现有 7 个操作装饰器；所有端点标注实际正常码/异常码、请求 DTO 与响应 schema。认证和统一包装未实现前不虚标受保护或已包装；泛型包装/分页落实时用 ApiExtraModels+getSchemaPath 显式建 schema。
 - 命令：开发 `SWAGGER_ENABLED=true pnpm start:dev`，`curl -i http://localhost:3000/api/openapi.json`；生产关闭后同路径404。
 - 预期/验证：health在OpenAPI路径为/api/v1/health/live；业务POST正常201，login等显式200，reset202。Swagger原始JSON不经过响应包裹；UI Bearer按钮不等于接口已被保护。
 
-### 5.6 bootstrap 职责与启动日志整理（计划中）
+### 5.6 bootstrap 职责与启动日志整理
 
-2026-10-23 用户希望优化 bootstrap。当前该目录只有 configure-app.ts、configure-swagger.ts，它是应用初始化函数的目录，没有 Nest Module/Controller/Service；保留这两个文件即可。本节只补充实施方案，代码仍由用户修改，未进行新一轮代码或运行验收。
+2026-10-23 用户明确授权代理按本节调整代码，已实现：保留两个 bootstrap 文件和 main 的位置、配置键、路由和启动工厂；configureSwagger 使用已校验配置，关闭时返回 undefined，注册后返回 SwaggerRegistration（uiPath），由 main 在 listen 成功后输出实际文档地址。生产/测试代码类型检查、构建、全仓 ESLint 和本次三个文件的格式检查通过，证据见第 8 节及 CHG-20261023-003。运行行为尚未验收，继续暂不运行 Jest、HTTP 或数据库检查，不据此将整个阶段标记已验证。
 
 | 文件 | 当前职责 | 本轮调整边界 |
 | --- | --- | --- |
@@ -143,17 +143,17 @@ export class PaginationQueryDto {
 | src/main.ts | 创建应用、调用初始化、关闭信号、listen、日志 | 保留入口和调用顺序，删除多余空行与废弃日志注释；监听成功后统一输出实际服务/文档地址 |
 | src/config/env.validation.ts | 环境输入校验、布尔转换、路径默认值 | 继续作为默认值和转换的唯一来源，bootstrap 不再维护第二套默认值 |
 
-具体实施顺序：
+已落实的实施步骤：
 
 1. configureSwagger 读取已校验的 SWAGGER_ENABLE，关闭时返回 undefined，不注册 UI/JSON，不输出“已启用”日志。沿用当前键名，不在此批次同时切换成文档远期目标 SWAGGER_ENABLED。
 2. 开启时读取已校验的 SWAGGER_PATH，保留现有 DocumentBuilder、Bearer 定义、UI/JSON 路由和 persistAuthorization 行为；将 doc_config 等局部变量统一 camelCase，不额外建常量文件或工具层。
-3. 注册成功后返回一个含 uiPath 的元数据对象，例如类型为 `{ uiPath: string } | undefined`；类型定义和实现留在 configure-swagger.ts。仅为显示而确保路径前导斜杠唯一，实际注册路径保持当前约定；不在此批切换 JSON 地址或严格路径校验策略。
+3. 注册成功后返回 SwaggerRegistration，类型为 `{ uiPath: string }`，关闭时返回 undefined；类型定义和实现留在 configure-swagger.ts。仅为显示而确保路径前导斜杠唯一，实际注册路径保持当前约定；不在此批切换 JSON 地址或严格路径校验策略。SWAGGER_ENABLE/PATH 使用 getOrThrow 与类型推断读取，移除 helper 内重复默认值。
 4. 移除 configureSwagger 中硬编码 localhost 的绝对地址日志；main 保存返回值，await app.listen(port, host) 成功后获取 app.getUrl()，仅在存在 Swagger 元数据时拼接 uiPath 输出文档地址。这样绑定失败不会提前打印文档可用地址，自定义 HOST/端口也与实际监听地址一致。显示地址不代表已通过浏览器或网络连通验收。
 5. createAppModule 仍留在 app.module.ts，启动工厂/Observe 配置不混入这次两文件整理。E2E 的 HTTP 初始化继续复用 configureApp；需要验证 Swagger 路由时按阶段 09 调用同一 configureSwagger，当前不恢复或运行测试。
 
 兼容边界：保持 /api/v1、分页与 DTO 行为、Swagger 默认关闭、默认 UI /api/docs 和 JSON /api/docs-json；日志时机和内部返回类型变化不改变 HTTP 契约。保留 ESM 相对 .js 导入，不新增依赖，不改变模块注册、生成器或数据库连接。
 
-完成标准（本轮未执行）：代码与测试代码类型检查、构建、定向 ESLint/Prettier 通过；后续恢复验证时确认关闭不注册、开启路径一致、监听失败不输出成功地址。未运行的路由/数据库验收继续标注未验收。该批次为职责和日志收拢，不据此将阶段 03 或 09 标记整体完成。
+完成情况：代码与测试代码类型检查、构建、全仓 ESLint、本次修改文件的 Prettier 均通过。后续恢复验证时仍需确认关闭不注册、开启路径一致、监听失败不输出成功地址；本轮未执行路由/数据库验收。该批次为职责和日志收拢，不据此将阶段 03 或 09 标记整体完成。
 
 ## 6. 数据库设计
 
@@ -177,6 +177,8 @@ curl -i http://localhost:3000/api/v1/no-such-resource
 预期分别200和404，均有requestId。后续业务阶段定义各自端点，本节契约不再各自复制。
 
 ## 8. 验收标准
+
+bootstrap 整理局部验收（2026-10-23，基于提交 5dd53a7，Darwin arm64 / Node 24.18.0 / pnpm 11.13.1 / TypeScript 6.0.3，工作目录 project/）：生产与测试代码 `tsc --noEmit --incremental false` 检查、`pnpm run build`、`pnpm run lint` 及 configure-app.ts/configure-swagger.ts/main.ts 的定向 Prettier check 均退出 0；未执行 Jest、HTTP、Swagger UI、数据库或完整阶段验收。具体命令和范围见 [CHG-20261023-003](../changelog/2026-10-23-003-bootstrap-organization.md)。以下阶段验收清单仍保持未完成状态。
 
 - [ ] DTO边界、嵌套对象、未知字段、显式数值转换测试通过。
 - [ ] 200/201/202/400/401/403/404/409/429/500/503契约测试通过。

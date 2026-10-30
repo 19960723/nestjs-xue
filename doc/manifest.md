@@ -46,6 +46,10 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-10-30-001-role-resource-crud.md](changelog/2026-10-30-001-role-resource-crud.md)
+- [doc/changelog/2026-10-26-002-role-create.md](changelog/2026-10-26-002-role-create.md)
+- [doc/changelog/2026-10-26-001-role-dto-validation.md](changelog/2026-10-26-001-role-dto-validation.md)
+- [doc/changelog/2026-10-23-003-bootstrap-organization.md](changelog/2026-10-23-003-bootstrap-organization.md)
 - [doc/changelog/2026-10-23-002-project-organization.md](changelog/2026-10-23-002-project-organization.md)
 - [doc/changelog/2026-10-23-001-swagger-decorators.md](changelog/2026-10-23-001-swagger-decorators.md)
 - [doc/changelog/2026-10-22-001-prisma-dependencies.md](changelog/2026-10-22-001-prisma-dependencies.md)

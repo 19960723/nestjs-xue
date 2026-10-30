@@ -9,12 +9,12 @@
 | 范围 | 当前事实 | 待用户实施/确认 |
 | --- | --- | --- |
 | CLI/runtime 配置 | `prisma7.config.ts` 读 DATABASE_URL；PrismaService 读 DATABASE_HOST/PORT/USERNAME/PASSWORD/NAME | 统一使用经校验的 DATABASE_URL，集中解析 adapter；不读取或记录真实连接值 |
-| 模块 | `src/database/prisma/` 内为全局 PrismaModule；Users 依赖全局注入 | 目录及导入已调整；显式 imports 与移除全局作用域另批处理，复用单个 Provider |
-| 生成/构建 | Schema 已用 prisma-client，输出 src/generated/prisma；build 仅 nest build，无 prisma:generate 脚本 | 显式生成选项，串联 generate/build；确认干净检出可构建 |
+| 模块 | `src/database/prisma/` 内为全局 PrismaModule；Users 依赖全局注入，2026-10-26 RolesModule 已显式导入同一个模块 | 其他消费者显式 imports 与移除全局作用域另批处理，复用单个 Provider |
+| 生成/构建 | Schema 已用 prisma-client，输出 src/generated/prisma；2026-10-26 按已有 Schema 重新生成含 Role/UserRole 的 Client 7.10.1；build 仍仅 nest build，无 prisma:generate 脚本 | 显式生成选项，串联 generate/build；确认干净检出可构建 |
 | 模型/迁移 | User、Role、UserRole；两份迁移文件存在 | 当前与目标字段差异见第 6 节；迁移应用情况、存量数据与真实 MySQL 版本待确认 |
 | 生命周期 | 有连接、断开及日志代码 | 连通、失败路径、资源释放和事务仍待隔离环境验收 |
 
-本次仅更新文档，未执行配置变更、generate、迁移或数据库检查。
+2026-10-23 盘点仅更新文档，未执行配置变更、generate、迁移或数据库检查。2026-10-26 为授权的角色创建开发补充本地 generate，未加载个人环境文件、连接数据库或执行迁移；命令及证据见 [CHG-20261026-002](../changelog/2026-10-26-002-role-create.md)。本地生成通过不代表迁移已应用或角色表可用。
 
 ## 1. 阶段目标
 

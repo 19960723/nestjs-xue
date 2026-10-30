@@ -1,6 +1,6 @@
 # 项目总览
 
-更新：2026-10-23（Asia/Shanghai）。文档状态：已更新；整体功能：进行中。阶段 01 有本地验收记录，02～04 已有数据库、基础 CRUD 与 Swagger 实现，数据库业务未验收；认证与授权仍计划中。
+更新：2026-10-24（Asia/Shanghai）。文档状态：已更新；整体功能：进行中。阶段 01 有历史本地验收记录，02～04 已有数据库、基础 CRUD 与 Swagger 实现，bootstrap 整理已落地，数据库业务未验收；认证与授权仍计划中。
 
 目标是建立可持续维护的 NestJS 模块化单体后端，以用户管理、身份认证、RBAC 为第一条业务链。部署单元是一个 API 应用、一套 MySQL 和按阶段接入的 Redis；通过模块边界支持以后增加订单等业务，不预先拆微服务。
 
@@ -27,6 +27,24 @@
 阶段 01 当时的工作区和验收范围见其第 8 节。当前工作区已有用户未提交修改，本次文档整理予以保留；不将历史本地通过扩大为当前代码、CI、Linux 或后续业务已验证。
 
 2026-10-23 移动后复核：users 已移入 modules/users，Prisma 已移入 database/prisma，当前路径无需继续调整。检查期间删除了 AppController/AppService，用户已清理 AppModule 引用，最新生产/测试代码类型检查通过；旧 E2E 问候断言已删除，最新静态类型检查和构建通过，未运行测试。见[整理检查记录](../changelog/2026-10-23-002-project-organization.md#目录移动后检查2026-10-23)。
+
+## 最近一次进度复核（2026-10-24）
+
+本轮核对源码、Schema、依赖、阶段文档及最新变更记录，只补充文档进度，没有修改应用代码。Git HEAD 仍为 5dd53a7；bootstrap 及配套文档修改尚未提交，保留现有工作区。
+
+- 已落地：当前目录为 modules/users、modules/health、database/prisma、bootstrap/config；bootstrap 两函数已统一读取已校验配置，并由 main 在 listen 成功后输出实际地址。该内部整理已有类型/构建/静态质量证据，HTTP 开关和地址行为未验收。
+- 02 待办：CLI 使用 DATABASE_URL、runtime 仍使用独立字段，配置未统一；build 未串联 generate。Schema 和两份迁移文件存在，但迁移应用、实际数据库版本、连接关闭及事务约束未验收；User 目标字段/回填方案仍待明确。
+- 03 待办：全局 Pipe 和 Swagger 已有代码，统一响应/异常、requestId 与完成日志尚未实现；不能把 Swagger 装饰器验证当作全部 API 规范完成。
+- 04 待办：已有 5 个基础 CRUD 操作、分页与搜索，当前为硬删除，Service 直接查询并返回 Prisma 记录；软删、public select、状态管理、Repository 及业务验收仍待补齐。
+- 05～10：认证、授权行为、Redis、公共能力增强、完整测试/CI、部署运维仍计划中；Role/UserRole 模型不代表 RBAC 已实现，Jest/ESLint 最小工具已在 01 落地不代表 09 完成。
+
+当日复核环境：Darwin arm64、Node 24.18.0、pnpm 11.13.1；工作目录 project/。生产/测试代码的无输出类型检查、build、全仓 lint 均退出 0；format:check 退出 1，剩余 database/prisma/prisma.module.ts、database/prisma/prisma.service.ts、modules/users/users.service.ts、test/app.e2e-spec.ts 四个文件需格式化。仓库根目录 git diff --check 退出 0。命令详见[bootstrap 后续复核记录](../changelog/2026-10-23-003-bootstrap-organization.md#进度复核2026-10-24)。
+
+继续遵守暂不运行测试的约定，本轮未执行 Jest、HTTP、数据库连接/迁移、generate、安装或部署；构建使用本地已有生成客户端，不证明干净检出或数据库可运行。下一步优先补齐 02 的配置、生成链路与目标模型差异，再推进 03/04 的缺口，执行范围另按具体任务确定。
+
+## 角色资源 CRUD（2026-10-30）
+
+用户授权补齐角色列表、详情、更新、删除，不统一 DATABASE_URL、不改 User 模型、不实现认证授权。RolesService 已去掉脚手架字符串；列表接入 QueryRoleDto，公开字段白名单与 create 一致，已分配用户的角色删除返回 409。类型/构建/目标文件静态检查见 [CHG-20261030-001](../changelog/2026-10-30-001-role-resource-crud.md)。数据库与 HTTP 行为未验收；完整 RBAC 仍计划中。
 
 ## 功能分级
 

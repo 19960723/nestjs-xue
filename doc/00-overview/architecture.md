@@ -1,6 +1,6 @@
 # 模块化单体架构
 
-更新：2026-10-23。文档状态：已更新；目标方案仍见提议中的 [ADR 0001](../decisions/0001-modular-monolith.md)。当前已有 Health、Users 和 Prisma 模块，模块目录与部分职责尚未按目标收拢；阶段 01 及 Swagger 局部历史验收不代表数据库业务已验证。
+更新：2026-10-30。文档状态：已更新；目标方案仍见提议中的 [ADR 0001](../decisions/0001-modular-monolith.md)。当前已有 Health、Users、Roles 和 Prisma 模块，模块目录与部分职责尚未按目标收拢；阶段 01 及 Swagger 局部历史验收不代表数据库业务已验证。
 
 ## 当前实现与目标差异
 
@@ -22,6 +22,8 @@ project/src/
 当前调用关系为 `UsersController → UsersService → PrismaService`，没有 UsersRepository；UsersService 直接返回 Prisma 记录，Swagger 响应模型仅描述契约，不执行字段过滤。PrismaModule 使用 `@Global()`，UsersModule 尚未显式导入它。User/Role/UserRole 已有模型和迁移文件，认证/权限 Guard、Redis、统一响应/异常和请求标识仍未实现。
 
 后文请求链、职责和安全约束均为目标；当前硬删除及匿名 CRUD 与目标有差距，待阶段 02～06 补齐。阶段状态见[导航](../README.md)，具体差异以各阶段文档为准。
+
+2026-10-30 局部补充：AppModule 已注册 RolesModule，角色资源链路为 `RolesController → RolesService → PrismaService`。RolesModule 显式导入同一个 PrismaModule；Users 仍依赖全局注入，未移除 `@Global()`。列表/详情/创建/更新/删除均使用公开字段白名单；删除前检查用户分配，已分配 409。未新增 Repository、认证或权限 Guard。类型/构建通过，数据库行为待验收，详见[阶段 06](../06-authorization/implementation.md)。
 
 ## 目标请求与模块边界
 
@@ -166,10 +168,10 @@ common 与 shared 当前都为空，没有双重实现；后续建议选 common 
 
 ## 启动边界与待收拢项
 
-bootstrap 保留 configure-app.ts、configure-swagger.ts 两个初始化文件，不创建额外 Nest Module。下一步仅收拢已校验配置的读取方式、Swagger 注册元数据返回和 listen 成功后的统一日志；具体步骤及兼容边界见[阶段 03 第 5.6 节](../03-api-standards/implementation.md#56-bootstrap-职责与启动日志整理计划中)。这是待用户实施的方案，不表示代码已调整。
+bootstrap 保留 configure-app.ts、configure-swagger.ts 两个初始化文件，不创建额外 Nest Module。本次已收拢已校验配置的读取方式、Swagger 注册元数据返回和 listen 成功后的统一日志；具体步骤及兼容边界见[阶段 03 第 5.6 节](../03-api-standards/implementation.md#56-bootstrap-职责与启动日志整理)。用户已明确授权代理实施本项，代码与类型/构建/静态质量检查已完成；运行行为尚未验收，证据见阶段 03 和 CHG-20261023-003。
 
 阶段 01 建立的 createAppModule() 仍由 main 与 HTTP E2E 共用：等待 ConfigModule 加载并校验环境，再按 OBSERVE_ENABLED 动态加载可选 SDK，返回配套 DynamicModule 与 NestApplicationOptions。静态 import 不读取 Observe 凭据。ConfigService 跳过原始 process.env 回退；目前启动/Observe 及 SWAGGER_ENABLE 布尔值、SWAGGER_PATH 非空值已规范化，数据库配置仍待补齐校验；Swagger 路径格式的完整约束和目标键名切换尚未落实。
 
-当前 AppModule 还静态导入 PrismaModule、UsersModule；配置工厂的输入不连接数据库，但完整应用初始化会触发 PrismaService 构造及连接。整理期间的并行代码修改已将 ValidationPipe 移入 configureApp，main 已移除重复注册，现有 HTTP E2E 调用同一 configureApp；此项只做静态确认，未运行验收。Swagger 已从 main 提取到 configure-swagger.ts 并在监听前调用；SWAGGER_ENABLE 已显式转 boolean、默认 false，SWAGGER_PATH 已做非空校验。本轮静态盘点中，main 的重复文档地址日志已被用户注释；configureSwagger 内仍仅在启用时打印，实际地址展示和开关行为未运行验收。退出信号监听仍仅在实际 main 启用。
+当前 AppModule 还静态导入 PrismaModule、UsersModule；配置工厂的输入不连接数据库，但完整应用初始化会触发 PrismaService 构造及连接。整理期间的并行代码修改已将 ValidationPipe 移入 configureApp，main 已移除重复注册，现有 HTTP E2E 调用同一 configureApp；此项只做静态确认，未运行验收。Swagger 已从 main 提取到 configure-swagger.ts 并在监听前调用；SWAGGER_ENABLE 已显式转 boolean、默认 false，SWAGGER_PATH 已做非空校验。本次已移除 configureSwagger 内的地址日志，函数关闭时返回 undefined，开启注册后返回 uiPath；main 仅在 listen 成功且存在注册信息时以 app.getUrl() 拼接输出文档地址。配置默认值仅由 env.validation 提供，helper 使用 getOrThrow 读取；代码已通过类型/构建/静态检查，开关/地址/监听失败等运行断言未执行。退出信号监听仍仅在实际 main 启用。
 
-GET /api/v1/health/live 的处理器只返回存活状态，不查询数据库/Redis；这不表示整个应用能在数据库缺失时完成初始化。当前共用 Pipe 与 configureSwagger 已接线，后续完善配置与日志，main 保持组装、调用配置、退出信号和监听职责；细节见[阶段 03](../03-api-standards/implementation.md#5-详细实施步骤)。普通 HTTP 测试与真实数据库测试的边界见[阶段 09](../09-testing/implementation.md#54-http-e2e与openapi回归)。
+GET /api/v1/health/live 的处理器只返回存活状态，不查询数据库/Redis；这不表示整个应用能在数据库缺失时完成初始化。当前共用 Pipe 与 configureSwagger 已接线，bootstrap 配置读取与日志已按授权收拢，main 保持组装、调用配置、退出信号、监听及成功日志职责；细节见[阶段 03](../03-api-standards/implementation.md#5-详细实施步骤)。普通 HTTP 测试与真实数据库测试的边界见[阶段 09](../09-testing/implementation.md#54-http-e2e与openapi回归)。

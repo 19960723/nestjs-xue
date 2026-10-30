@@ -1,6 +1,6 @@
 # 项目技术文档导航
 
-更新：2026-10-23（Asia/Shanghai）。文档体系：已初始化；应用整体：进行中。阶段 01 已完成本地验收；阶段 02 已记录依赖安装；当前已有数据库和基础 CRUD 代码，数据库业务未验收；现有接口 Swagger 装饰器已本地验证。
+更新：2026-10-30（Asia/Shanghai）。文档体系：已初始化；应用整体：进行中。阶段 01 有历史本地验收；02～04 已有数据库、基础 CRUD 和 Swagger 实现，完整阶段及数据库业务仍未验收。角色资源 CRUD 已落地，授权未实现；详见[角色资源 CRUD](00-overview/project-overview.md#角色资源-crud2026-10-30)。
 
 ## 从这里开始
 
@@ -21,7 +21,7 @@
 | 03 | [API规范与可观测性基础](03-api-standards/implementation.md) | 已更新 | 进行中（现有接口 Swagger 已本地验证） | 01/02 |
 | 04 | [用户管理CRUD](04-user-management/implementation.md) | 已更新 | 进行中（已有基础 CRUD，数据库业务未验收） | 02/03 |
 | 05 | [身份认证与会话](05-authentication/implementation.md) | 已编写 | 计划中 | 04 |
-| 06 | [RBAC授权](06-authorization/implementation.md) | 已更新 | 计划中（已有基础角色模型，授权未实现） | 05 |
+| 06 | [RBAC授权](06-authorization/implementation.md) | 已更新 | 计划中（角色资源 CRUD 已实现，数据库行为未验收，授权未实现） | 05 |
 | 07 | [Redis缓存与共享限流](07-redis/implementation.md) | 已编写 | 计划中 | 04～06 |
 | 08 | [公共能力与审计](08-common/implementation.md) | 已编写 | 计划中 | 02～07 |
 | 09 | [测试质量与CI](09-testing/implementation.md) | 已更新 | 计划中（最小工具已在01验证，当前测试执行暂缓） | 01～08 |
@@ -41,7 +41,7 @@
 
 ## 下一步
 
-先按[整理实施顺序](00-overview/roadmap.md#当前整理实施顺序)推进：文档校准 → 启动与配置收拢 → 目录移动 → 用户与数据模型调整 → 验证闭环。本次代理仅完成文档更新；用户并行代码进度记录于路线图，仍需逐项验收。已有 Schema、迁移文件、生成客户端和 Prisma 模块应原地调整，不重复初始化或生成业务骨架。迁移应用历史及数据库运行状态待阶段 02 核对验收。
+先按[整理实施顺序](00-overview/roadmap.md#当前整理实施顺序)推进：文档校准 → 启动与配置收拢 → 目录移动 → 用户与数据模型调整 → 验证闭环。bootstrap 配置读取与日志已由用户单独授权代理实现，通过类型/构建/静态质量检查；数据库及其他任务仍按原范围推进，逐项补验收。已有 Schema、迁移文件、生成客户端和 Prisma 模块应原地调整，不重复初始化或生成业务骨架。迁移应用历史及数据库运行状态待阶段 02 核对验收。
 
 针对 src 当前文件数量，按[最小整理方案](00-overview/architecture.md#src-当前规模的最小整理方案)收拢：根目录保留 main/app.module，业务统一 modules，Prisma 源模块已归入 database/prisma，无需为目录风格再次移动，生成客户端保持原位；只实现当前需要的目录。
 
