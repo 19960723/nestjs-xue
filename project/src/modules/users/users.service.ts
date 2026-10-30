@@ -8,12 +8,12 @@ import { PrismaService } from '../../database/prisma/prisma.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { QueryUserDto } from './dto/query-user.dto.js';
+import { userPublicSelect } from './user.select.js';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // 处理唯一字段冲突
   private handleWriteError(error: unknown): never {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -25,21 +25,23 @@ export class UsersService {
     throw error;
   }
 
-  // 新增用户
   async create(dto: CreateUserDto) {
     try {
       return await this.prisma.user.create({
-        data: dto,
+        data: {
+          name: dto.name,
+          email: dto.email,
+          age: dto.age,
+        },
+        select: userPublicSelect,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       this.handleWriteError(error);
     }
   }
 
-  // 分页查询
   async findAll(query: QueryUserDto) {
     const { page, pageSize, keyword } = query;
-
     const where: Prisma.UserWhereInput = keyword
       ? {
           OR: [
@@ -52,6 +54,7 @@ export class UsersService {
     const [list, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
+        select: userPublicSelect,
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { id: 'desc' },
@@ -67,10 +70,10 @@ export class UsersService {
     };
   }
 
-  // 查询详情
   async findOne(id: number) {
     const user = await this.prisma.user.findUnique({
       where: { id },
+      select: userPublicSelect,
     });
 
     if (!user) {
@@ -80,26 +83,46 @@ export class UsersService {
     return user;
   }
 
-  // 修改用户
   async update(id: number, dto: UpdateUserDto) {
     await this.findOne(id);
 
     try {
       return await this.prisma.user.update({
         where: { id },
-        data: dto,
+        data: {
+          name: dto.name,
+          email: dto.email,
+          age: dto.age,
+        },
+        select: userPublicSelect,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       this.handleWriteError(error);
     }
   }
 
-  // 删除用户
   async remove(id: number) {
-    await this.findOne(id);
+    await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id },
+        select: { id: true },
+      });
 
-    await this.prisma.user.delete({
-      where: { id },
+      if (!user) {
+        throw new NotFoundException('用户不存在');
+      }
+
+      const assignedCount = await tx.userRole.count({
+        where: { userId: id },
+      });
+
+      if (assignedCount > 0) {
+        throw new ConflictException('用户已分配角色，无法删除');
+      }
+
+      await tx.user.delete({
+        where: { id },
+      });
     });
 
     return { message: '删除成功' };

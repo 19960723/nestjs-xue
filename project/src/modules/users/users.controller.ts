@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   Query,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -57,8 +58,8 @@ export class UsersController {
   @ApiParam({ name: 'id', description: '用户 ID', type: 'integer', example: 1 })
   @ApiOkResponse({ description: '用户详情', type: User })
   @ApiNotFoundResponse({ description: '用户不存在' })
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(+id);
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.findOne(id);
   }
 
   @Patch(':id')
@@ -69,19 +70,23 @@ export class UsersController {
   @ApiBadRequestResponse({ description: '请求字段不符合校验规则' })
   @ApiNotFoundResponse({ description: '用户不存在' })
   @ApiConflictResponse({ description: '邮箱已被使用' })
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(+id, updateUserDto);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    return this.usersService.update(id, updateUserDto);
   }
 
   @Delete(':id')
   @ApiOperation({
     summary: '删除用户',
-    description: '当前执行物理删除，并返回删除结果消息。',
+    description: '尚未分配角色时物理删除；已分配则返回 409。',
   })
   @ApiParam({ name: 'id', description: '用户 ID', type: 'integer', example: 1 })
   @ApiOkResponse({ description: '用户删除成功', type: DeleteUserResponseDto })
   @ApiNotFoundResponse({ description: '用户不存在' })
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(+id);
+  @ApiConflictResponse({ description: '用户已分配角色，无法删除' })
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.remove(id);
   }
 }
