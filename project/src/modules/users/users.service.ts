@@ -124,7 +124,5 @@ export class UsersService {
         where: { id },
       });
     });
-
-    return { message: '删除成功' };
   }
 }

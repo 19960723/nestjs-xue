@@ -26,17 +26,31 @@ describe('Application (e2e)', () => {
   });
 
   it('GET /api/v1/health/live exposes only liveness', async () => {
-    await request(app.getHttpServer())
+    const response = await request(app.getHttpServer())
       .get('/api/v1/health/live')
+      .set('X-Request-Id', 'api-contract-01')
       .expect('Content-Type', /json/)
-      .expect(200)
-      .expect({ status: 'ok' });
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      code: 'OK',
+      message: 'ok',
+      data: { status: 'ok' },
+      requestId: 'api-contract-01',
+    });
+    expect(response.headers['x-request-id']).toBe('api-contract-01');
   });
 
   it.each(['/', '/health/live', '/api/health/live'])(
     'GET %s does not bypass the prefix or version',
     async (path) => {
-      await request(app.getHttpServer()).get(path).expect(404);
+      const response = await request(app.getHttpServer()).get(path).expect(404);
+
+      expect(response.body).toMatchObject({
+        code: 'NOT_FOUND',
+        data: null,
+      });
+      expect(typeof response.body.requestId).toBe('string');
     },
   );
 });

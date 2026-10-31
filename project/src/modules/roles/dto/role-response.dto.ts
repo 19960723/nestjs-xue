@@ -14,8 +14,3 @@ export class RolePageDto {
   @ApiProperty({ description: '每页条数', type: 'integer', example: 10 })
   pageSize!: number;
 }
-
-export class DeleteRoleResponseDto {
-  @ApiProperty({ description: '删除结果', example: '删除成功' })
-  message!: string;
-}

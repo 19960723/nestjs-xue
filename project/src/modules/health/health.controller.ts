@@ -8,12 +8,8 @@ export class HealthController {
   @Get('live')
   @ApiOperation({ summary: '检查 HTTP 应用存活状态' })
   @ApiOkResponse({
-    description: 'HTTP 应用可响应，不代表数据库或 Redis 已就绪',
-    schema: {
-      type: 'object',
-      required: ['status'],
-      properties: { status: { type: 'string', enum: ['ok'], example: 'ok' } },
-    },
+    description:
+      'HTTP 应用可响应，不代表数据库或 Redis 已就绪；成功时由全局拦截器包装，data.status=ok',
   })
   live(): { status: 'ok' } {
     // 固定响应，不输出环境、凭据或内部连接状态。

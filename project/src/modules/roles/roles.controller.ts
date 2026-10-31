@@ -24,7 +24,7 @@ import { RolesService } from './roles.service.js';
 import { CreateRoleDto } from './dto/create-role.dto.js';
 import { QueryRoleDto } from './dto/query-role.dto.js';
 import { UpdateRoleDto } from './dto/update-role.dto.js';
-import { DeleteRoleResponseDto, RolePageDto } from './dto/role-response.dto.js';
+import { RolePageDto } from './dto/role-response.dto.js';
 import { Role } from './entities/role.entity.js';
 
 @ApiTags('角色管理')
@@ -84,7 +84,7 @@ export class RolesController {
     description: '尚未分配给用户时物理删除；已分配则返回 409。',
   })
   @ApiParam({ name: 'id', description: '角色 ID', type: 'integer', example: 1 })
-  @ApiOkResponse({ description: '角色删除成功', type: DeleteRoleResponseDto })
+  @ApiOkResponse({ description: '角色删除成功，data 为 null' })
   @ApiNotFoundResponse({ description: '角色不存在' })
   @ApiConflictResponse({ description: '角色已分配给用户，无法删除' })
   remove(@Param('id', ParseIntPipe) id: number) {

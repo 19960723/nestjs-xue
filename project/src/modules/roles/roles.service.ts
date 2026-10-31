@@ -133,7 +133,5 @@ export class RolesService {
         where: { id },
       });
     });
-
-    return { message: '删除成功' };
   }
 }

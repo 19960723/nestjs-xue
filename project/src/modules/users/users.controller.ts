@@ -21,7 +21,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { User } from './entities/user.entity.js';
-import { DeleteUserResponseDto, UserPageDto } from './dto/user-response.dto.js';
+import { UserPageDto } from './dto/user-response.dto.js';
 import { UsersService } from './users.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
@@ -83,7 +83,7 @@ export class UsersController {
     description: '尚未分配角色时物理删除；已分配则返回 409。',
   })
   @ApiParam({ name: 'id', description: '用户 ID', type: 'integer', example: 1 })
-  @ApiOkResponse({ description: '用户删除成功', type: DeleteUserResponseDto })
+  @ApiOkResponse({ description: '用户删除成功，data 为 null' })
   @ApiNotFoundResponse({ description: '用户不存在' })
   @ApiConflictResponse({ description: '用户已分配角色，无法删除' })
   remove(@Param('id', ParseIntPipe) id: number) {
