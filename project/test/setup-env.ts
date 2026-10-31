@@ -7,3 +7,5 @@ process.env.LOG_LEVEL = 'fatal';
 process.env.OBSERVE_ENABLED = 'false';
 delete process.env.OBSERVE_APP_KEY;
 delete process.env.OBSERVE_APP_SECRET;
+process.env.DATABASE_URL =
+  'mysql://app_user:replace_me@127.0.0.1:3306/init_xue_dev';

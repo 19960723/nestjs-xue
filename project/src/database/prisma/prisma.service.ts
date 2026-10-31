@@ -1,12 +1,12 @@
 import {
   Injectable,
-  OnModuleInit,
-  OnModuleDestroy,
   Logger,
+  type OnModuleDestroy,
+  type OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { PrismaClient } from '../../generated/prisma/client.js';
+import { createDatabaseAdapter } from './database-options.js';
 
 @Injectable()
 export class PrismaService
@@ -16,19 +16,8 @@ export class PrismaService
   private readonly logger = new Logger(PrismaService.name);
 
   constructor(config: ConfigService) {
-    const adapter = new PrismaMariaDb({
-      host: config.getOrThrow<string>('DATABASE_HOST'),
-      port: Number(config.getOrThrow<string>('DATABASE_PORT')),
-      user: config.getOrThrow<string>('DATABASE_USERNAME'),
-      password: config.getOrThrow<string>('DATABASE_PASSWORD'),
-      database: config.getOrThrow<string>('DATABASE_NAME'),
-      connectionLimit: 5,
-
-      // 允许从 MySQL 服务端获取 RSA 公钥
-      allowPublicKeyRetrieval: true,
-    });
     super({
-      adapter,
+      adapter: createDatabaseAdapter(config.getOrThrow<string>('DATABASE_URL')),
     });
   }
 

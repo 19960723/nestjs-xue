@@ -1,4 +1,5 @@
 import type { LogLevel } from '@nestjs/common';
+import { parseMysqlDatabaseUrl } from '../database/prisma/database-options.js';
 
 // 同时用于配置枚举校验和启动日志过滤，顺序为从严重到详细。
 export const LOG_LEVELS = [
@@ -21,6 +22,7 @@ export interface Environment extends Record<string, unknown> {
   OBSERVE_APP_SECRET?: string;
   SWAGGER_ENABLE: boolean;
   SWAGGER_PATH: string;
+  DATABASE_URL: string;
 }
 
 function enumValue<T extends string>(
@@ -84,6 +86,12 @@ export function validateEnv(env: Record<string, unknown>): Environment {
   }
   const swaggerPath = swaggerPathRaw.trim();
 
+  if (typeof env.DATABASE_URL !== 'string' || !env.DATABASE_URL.trim()) {
+    throw new Error('DATABASE_URL 必填');
+  }
+  const databaseUrl = env.DATABASE_URL.trim();
+  parseMysqlDatabaseUrl(databaseUrl);
+
   // 保留其他配置键供后续阶段使用，仅覆盖本阶段已校验和规范化的字段。
   return {
     ...env,
@@ -100,5 +108,6 @@ export function validateEnv(env: Record<string, unknown>): Environment {
         : undefined,
     SWAGGER_ENABLE: swaggerEnable,
     SWAGGER_PATH: swaggerPath,
+    DATABASE_URL: databaseUrl,
   };
 }
