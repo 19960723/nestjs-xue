@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -7,50 +8,154 @@ datasource db {
   provider = "mysql"
 }
 
+// ==============================
+// 用户表
+// ==============================
+
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String   @db.VarChar(50)
-  email     String   @unique @db.VarChar(100)
-  age       Int?
-  status    Int      @default(1) // 1=启用 0=禁用
-  phone     String?  @unique @db.VarChar(20)
-  sex       Int? // 0=未知 1=男 2=女
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          Int       @id @default(autoincrement())
+  username    String?   @unique @db.VarChar(50)
+  password    String?   @db.VarChar(255) // 仅存密码哈希
+  nickname    String?    @db.VarChar(50)
+  avatar      String?   @db.VarChar(255)
+  email       String    @unique @db.VarChar(100)
+  phone       String?   @unique @db.VarChar(20)
+  sex         Int?      @db.TinyInt // 0=未知 1=男 2=女
+  status      Int       @default(1) @db.TinyInt // 1=启用 0=禁用
+  lastLoginAt DateTime? @map("last_login_at")
+  deletedAt   DateTime? @map("deleted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime?  @updatedAt @map("updated_at")
 
   // 关联关系
-  roles UserRole[]
+  roles    UserRole[]
+  sessions UserSession[]
 
+  @@index([status])
+  @@index([deletedAt])
   @@map("users")
 }
+
+// ==============================
+// 角色表
+// ==============================
 
 model Role {
   id          Int      @id @default(autoincrement())
   name        String   @db.VarChar(50)
   code        String   @unique @db.VarChar(50)
   description String?  @db.VarChar(255)
-  status      Int      @default(1) // 1=启用 0=禁用
+  status      Int      @default(1) @db.TinyInt // 1=启用 0=禁用
   sort        Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime? @updatedAt @map("updated_at")
 
   // 关联关系
-  users UserRole[]
+  users       UserRole[]
+  permissions RolePermission[]
 
+  @@index([status])
   @@map("roles")
 }
+
+// ==============================
+// 用户角色关联表
+// ==============================
 
 model UserRole {
   id        Int      @id @default(autoincrement())
   userId    Int      @map("user_id")
   roleId    Int      @map("role_id")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
 
   // 关联关系
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@unique([userId, roleId])
+  @@index([roleId])
   @@map("user_roles")
+}
+
+// ==============================
+// 权限类型
+// ==============================
+
+enum PermissionType {
+  DIRECTORY // 目录
+  MENU      // 菜单
+  BUTTON    // 按钮
+  API       // 接口
+}
+
+// ==============================
+// 权限表
+// ==============================
+
+model Permission {
+  id          Int            @id @default(autoincrement())
+  parentId    Int?           @map("parent_id")
+  name        String         @db.VarChar(100)
+  code        String         @unique @db.VarChar(100)
+  type        PermissionType
+  resource    String?        @db.VarChar(255)
+  description String?        @db.VarChar(255)
+  status      Int            @default(1) @db.TinyInt // 1=启用 0=禁用
+  sort        Int            @default(0)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  // 权限树形结构
+  parent   Permission?  @relation("PermissionTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children Permission[] @relation("PermissionTree")
+
+  // 关联角色
+  roles RolePermission[]
+
+  @@index([parentId])
+  @@index([type, status])
+  @@map("permissions")
+}
+
+// ==============================
+// 角色权限关联表
+// ==============================
+
+model RolePermission {
+  id           Int      @id @default(autoincrement())
+  roleId       Int      @map("role_id")
+  permissionId Int      @map("permission_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // 关联关系
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// ==============================
+// 用户登录会话表
+// ==============================
+
+model UserSession {
+  id               Int       @id @default(autoincrement())
+  userId           Int       @map("user_id")
+  refreshTokenHash String    @unique @map("refresh_token_hash") @db.VarChar(255)
+  deviceName       String?   @map("device_name") @db.VarChar(100)
+  ipAddress        String?   @map("ip_address") @db.VarChar(45)
+  userAgent        String?   @map("user_agent") @db.VarChar(500)
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  // 关联关系
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+  @@map("sys_user_session")
 }

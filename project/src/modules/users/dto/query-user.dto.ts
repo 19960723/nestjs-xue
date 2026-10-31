@@ -32,7 +32,7 @@ export class QueryUserDto {
   pageSize: number = 10;
 
   @ApiPropertyOptional({
-    description: '按姓名或邮箱模糊搜索',
+    description: '按用户名、昵称或邮箱模糊搜索',
     example: 'example.test',
   })
   @IsOptional()

@@ -1,14 +1,16 @@
 import { Prisma } from '../../generated/prisma/client.js';
 
-/** 用户接口公开字段，不包含角色关联。 */
+/** 用户接口公开字段，不包含密码、删除时间和角色关联。 */
 export const userPublicSelect = {
   id: true,
-  name: true,
+  username: true,
+  nickname: true,
+  avatar: true,
   email: true,
-  age: true,
-  status: true,
   phone: true,
   sex: true,
+  status: true,
+  lastLoginAt: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.UserSelect;

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -19,19 +20,55 @@ export class UsersService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      throw new ConflictException('邮箱已被使用');
+      const target = error.meta?.target;
+      const targetText = Array.isArray(target)
+        ? target.join(' ')
+        : String(target ?? '');
+      const text = `${targetText} ${error.message}`;
+
+      if (text.includes('username')) {
+        throw new ConflictException('用户名已被使用');
+      }
+
+      if (text.includes('phone')) {
+        throw new ConflictException('手机号已被使用');
+      }
+
+      if (text.includes('email')) {
+        throw new ConflictException('邮箱已被使用');
+      }
+
+      throw new ConflictException('唯一字段冲突');
     }
 
     throw error;
+  }
+
+  private profileData(dto: UpdateUserDto) {
+    if (dto.email === null) {
+      throw new BadRequestException('邮箱不能为空');
+    }
+
+    return {
+      email: dto.email,
+      username: dto.username,
+      nickname: dto.nickname,
+      phone: dto.phone,
+      sex: dto.sex,
+      avatar: dto.avatar,
+    };
   }
 
   async create(dto: CreateUserDto) {
     try {
       return await this.prisma.user.create({
         data: {
-          name: dto.name,
           email: dto.email,
-          age: dto.age,
+          username: dto.username,
+          nickname: dto.nickname,
+          phone: dto.phone,
+          sex: dto.sex,
+          avatar: dto.avatar,
         },
         select: userPublicSelect,
       });
@@ -45,7 +82,8 @@ export class UsersService {
     const where: Prisma.UserWhereInput = keyword
       ? {
           OR: [
-            { name: { contains: keyword } },
+            { username: { contains: keyword } },
+            { nickname: { contains: keyword } },
             { email: { contains: keyword } },
           ],
         }
@@ -89,11 +127,7 @@ export class UsersService {
     try {
       return await this.prisma.user.update({
         where: { id },
-        data: {
-          name: dto.name,
-          email: dto.email,
-          age: dto.age,
-        },
+        data: this.profileData(dto),
         select: userPublicSelect,
       });
     } catch (error: unknown) {

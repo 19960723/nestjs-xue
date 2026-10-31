@@ -109,4 +109,21 @@ describe('validateEnv', () => {
       }),
     ).toThrow(/^DATABASE_URL 协议必须是 mysql$/);
   });
+
+  it.each([
+    'DATABASE_HOST',
+    'DATABASE_PORT',
+    'DATABASE_USERNAME',
+    'DATABASE_PASSWORD',
+    'DATABASE_NAME',
+  ])('rejects removed %s', (key) => {
+    expect(() => validateEnv(envWithDb({ [key]: 'leftover' }))).toThrow(
+      `${key} 已停用，请只配置 DATABASE_URL`,
+    );
+  });
+
+  it('does not keep unknown env keys on the validated object', () => {
+    const result = validateEnv(envWithDb({ UNRELATED: '1' }));
+    expect(result).not.toHaveProperty('UNRELATED');
+  });
 });

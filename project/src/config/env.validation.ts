@@ -25,6 +25,14 @@ export interface Environment extends Record<string, unknown> {
   DATABASE_URL: string;
 }
 
+const REMOVED_DATABASE_KEYS = [
+  'DATABASE_HOST',
+  'DATABASE_PORT',
+  'DATABASE_USERNAME',
+  'DATABASE_PASSWORD',
+  'DATABASE_NAME',
+] as const;
+
 function enumValue<T extends string>(
   name: string,
   value: unknown,
@@ -92,18 +100,25 @@ export function validateEnv(env: Record<string, unknown>): Environment {
   const databaseUrl = env.DATABASE_URL.trim();
   parseMysqlDatabaseUrl(databaseUrl);
 
-  // 保留其他配置键供后续阶段使用，仅覆盖本阶段已校验和规范化的字段。
+  for (const key of REMOVED_DATABASE_KEYS) {
+    if (env[key] !== undefined) {
+      throw new Error(`${key} 已停用，请只配置 DATABASE_URL`);
+    }
+  }
+
   return {
-    ...env,
     NODE_ENV: nodeEnv,
     HOST: host,
     PORT: port,
     LOG_LEVEL: logLevel,
     OBSERVE_ENABLED: observeEnabled,
     OBSERVE_APP_KEY:
-      typeof env.OBSERVE_APP_KEY === 'string' ? env.OBSERVE_APP_KEY : undefined,
+      typeof env.OBSERVE_APP_KEY === 'string' && env.OBSERVE_APP_KEY.trim()
+        ? env.OBSERVE_APP_KEY
+        : undefined,
     OBSERVE_APP_SECRET:
-      typeof env.OBSERVE_APP_SECRET === 'string'
+      typeof env.OBSERVE_APP_SECRET === 'string' &&
+      env.OBSERVE_APP_SECRET.trim()
         ? env.OBSERVE_APP_SECRET
         : undefined,
     SWAGGER_ENABLE: swaggerEnable,
