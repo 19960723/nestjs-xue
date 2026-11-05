@@ -46,6 +46,18 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-11-02-002-initial-password.md](changelog/2026-11-02-002-initial-password.md)
+- [doc/changelog/2026-11-02-001-migration-alignment.md](changelog/2026-11-02-001-migration-alignment.md)
+- [doc/changelog/2026-10-31-008-user-response-last-login.md](changelog/2026-10-31-008-user-response-last-login.md)
+- [doc/changelog/2026-10-31-007-create-user-dto.md](changelog/2026-10-31-007-create-user-dto.md)
+- [doc/changelog/2026-10-31-006-user-session.md](changelog/2026-10-31-006-user-session.md)
+- [doc/changelog/2026-10-31-005-role-permission.md](changelog/2026-10-31-005-role-permission.md)
+- [doc/changelog/2026-10-31-004-permission-type.md](changelog/2026-10-31-004-permission-type.md)
+- [doc/changelog/2026-10-31-003-permission-model.md](changelog/2026-10-31-003-permission-model.md)
+- [doc/changelog/2026-10-31-002-user-model-fields.md](changelog/2026-10-31-002-user-model-fields.md)
+- [doc/changelog/2026-10-31-001-database-url.md](changelog/2026-10-31-001-database-url.md)
+- [doc/changelog/2026-10-30-003-api-envelope.md](changelog/2026-10-30-003-api-envelope.md)
+- [doc/changelog/2026-10-30-002-users-align-roles.md](changelog/2026-10-30-002-users-align-roles.md)
 - [doc/changelog/2026-10-30-001-role-resource-crud.md](changelog/2026-10-30-001-role-resource-crud.md)
 - [doc/changelog/2026-10-26-002-role-create.md](changelog/2026-10-26-002-role-create.md)
 - [doc/changelog/2026-10-26-001-role-dto-validation.md](changelog/2026-10-26-001-role-dto-validation.md)

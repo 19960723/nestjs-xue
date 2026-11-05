@@ -1,6 +1,6 @@
 # 阶段 06：RBAC 权限系统
 
-更新：2026-10-30。文档状态：已更新；功能状态：RBAC 计划中（角色资源 CRUD 已实现，类型/构建通过，数据库行为未验收，授权未实现）。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
+更新：2026-11-02。文档状态：已更新；功能状态：RBAC 计划中（角色资源 CRUD 已实现；Permission 与 RolePermission 已写入 Schema，并包含在已应用的 `20261031082805_add_role_permission`；授权 Guard 未实现，数据库行为未验收）。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
 
 ## 1. 阶段目标
 
@@ -116,7 +116,7 @@ remove(@Param('id', ParseIntPipe) id: number) {
 - `GET /roles` 接入 `QueryRoleDto`：keyword 非空时 name/code `contains`，status 传入时精确匹配；分页默认 1/10；返回 `{list,total,page,pageSize}`，与当前用户列表字段一致，不提前改为 `items`。
 - `GET /roles/:id`、`PATCH /roles/:id`、`DELETE /roles/:id` 使用 `ParseIntPipe`；不存在返回 404「角色不存在」。
 - 更新显式写入 name/code/description/status/sort，undefined 交给 Prisma 跳过；仍允许改 code 和空 PATCH。code 冲突 409。
-- 删除在同一事务内确认角色存在且 `user_roles` 计数为 0 后物理删除；已分配则 409「角色已分配给用户，无法删除」，避免当前 Cascade 外键误清关联。成功返回 `{message:'删除成功'}`，未切换阶段 03 的 `data:null`。
+- 删除在同一事务内确认角色存在且 `user_roles` 计数为 0 后物理删除；已分配则 409「角色已分配给用户，无法删除」，避免当前 Cascade 外键误清关联。成功由全局包装输出 `data: null`。
 - 删除空文件 `dto/role.vo.ts`。未加权限装饰器，完整 RBAC 仍计划中。
 
 ### 5.4 保护管理员与即时撤权
@@ -132,7 +132,9 @@ remove(@Param('id', ParseIntPipe) id: number) {
 
 ## 6. 数据库设计
 
-当前已有 Role、UserRole 和 User.roles；Role 使用数字 status 并有 sort，UserRole 使用自增 id 加 userId/roleId 联合唯一、级联删除。下方为目标，尚无 Permission/RolePermission、enabled/isSystem 和授权模块；不能整体覆盖当前 Schema。缩短 code 长度、status→enabled、主键替换、级联→Restrict 均需评估存量数据、依赖及迁移成本，先与 02 和 ADR0004 明确方案；不为目录整理改变这些约束。
+当前已有 Role、UserRole、User.roles，以及 2026-10-31 写入 Schema 的 Permission。Role 使用数字 status 并有 sort，UserRole 使用自增 id 加 userId/roleId 联合唯一、级联删除。Permission 使用 Int 自增主键；`parentId` 映射列 `parent_id`，可空，自关联且删除父级为 Restrict；`code` 唯一，VarChar(100)；`name` 为 VarChar(100)；`type` 为枚举 `PermissionType`：`M` 目录、`C` 菜单、`A` 按钮、`API` 纯 API；`status` 为 TinyInt，默认 1（1 启用，0 禁用）；`resource`、`description` 可空，VarChar(255)；时间列映射为 `created_at`、`updated_at`。RolePermission 已写入 Schema，映射 `role_permissions`：自增 id，`role_id` 与 `permission_id` 联合唯一，删除角色或权限时级联删除关联行，并有 `permissionId` 索引。用户、角色、权限因此形成 User → UserRole → Role → RolePermission → Permission。没有授权模块，接口也不读写这张表。本次未创建或应用迁移。
+
+下方代码块仍是更早的目标草稿，其中 Permission 只有 id/code/name，RolePermission 使用复合主键和 Restrict。当前以 Schema 为准。草稿里的 enabled/isSystem、主键替换和级联改为 Restrict 都还没落地；缩短 code、替换主键前要先评估存量数据。不能用这段草稿覆盖现有 Role/UserRole/RolePermission。
 
 目标角色/权限采用 Int 自增 PK、code 唯一；关联表复合 PK 防重复，反向索引支持“角色有哪些用户/权限有哪些角色”。Restrict 防误删已关联实体；解除关联为显式事务操作。现有关系可在评估后保留等价唯一约束，具体增量方案验收前回填。
 
@@ -215,6 +217,12 @@ curl -i -X PUT http://localhost:3000/api/v1/users/2/roles -H "Authorization: Bea
 - [ ] 系统角色/自修改/最后管理员保护覆盖单条和批量以及并发场景。
 
 完整 RBAC 验收：未执行。
+
+2026-10-31 Permission 模型局部检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、Prisma 7.10.1、TypeScript 6.0.3；运行目录 `project/`。占位 `DATABASE_URL` 下 `prisma validate` 与 `prisma generate --config prisma7.config.ts` 退出 0，生成 Prisma Client 7.10.1。`tsc --noEmit --incremental false -p tsconfig.build.json` 退出 0。未执行 Jest、HTTP、migrate 或真实连接，未读取个人连接串。不将阶段 06 标为已实现或已验证。证据见 [CHG-20261031-003](../changelog/2026-10-31-003-permission-model.md)。
+
+同日将 `type` 从 TinyInt 改为枚举 `PermissionType`（M/C/A/API）。同一环境下占位 `DATABASE_URL` 的 validate、generate 与生产 `tsc --noEmit --incremental false -p tsconfig.build.json` 退出 0。未执行迁移。证据见 [CHG-20261031-004](../changelog/2026-10-31-004-permission-type.md)。
+
+同日补充 RolePermission。同一环境下占位 `DATABASE_URL` 的 validate、generate 与生产 `tsc --noEmit --incremental false -p tsconfig.build.json` 退出 0。未执行迁移或授权接口验收。证据见 [CHG-20261031-005](../changelog/2026-10-31-005-role-permission.md)。
 
 2026-10-26 角色 DTO 局部检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、TypeScript 6.0.3；运行目录 `project/`。
 

@@ -1,6 +1,6 @@
 # 项目总览
 
-更新：2026-10-24（Asia/Shanghai）。文档状态：已更新；整体功能：进行中。阶段 01 有历史本地验收记录，02～04 已有数据库、基础 CRUD 与 Swagger 实现，bootstrap 整理已落地，数据库业务未验收；认证与授权仍计划中。
+更新：2026-11-02（Asia/Shanghai）。文档状态：已更新；整体功能：进行中。阶段 01 有历史本地验收记录，02～04 已有数据库、基础 CRUD 与 Swagger 实现，bootstrap 整理已落地，数据库业务未验收。本地三份迁移已应用，库与 Schema 一致。认证已有首次设密，登录和授权仍未实现。
 
 目标是建立可持续维护的 NestJS 模块化单体后端，以用户管理、身份认证、RBAC 为第一条业务链。部署单元是一个 API 应用、一套 MySQL 和按阶段接入的 Redis；通过模块边界支持以后增加订单等业务，不预先拆微服务。
 
@@ -33,9 +33,9 @@
 本轮核对源码、Schema、依赖、阶段文档及最新变更记录，只补充文档进度，没有修改应用代码。Git HEAD 仍为 5dd53a7；bootstrap 及配套文档修改尚未提交，保留现有工作区。
 
 - 已落地：当前目录为 modules/users、modules/health、database/prisma、bootstrap/config；bootstrap 两函数已统一读取已校验配置，并由 main 在 listen 成功后输出实际地址。该内部整理已有类型/构建/静态质量证据，HTTP 开关和地址行为未验收。
-- 02 待办：CLI 使用 DATABASE_URL、runtime 仍使用独立字段，配置未统一；build 未串联 generate。Schema 和两份迁移文件存在，但迁移应用、实际数据库版本、连接关闭及事务约束未验收；User 目标字段/回填方案仍待明确。
-- 03 待办：全局 Pipe 和 Swagger 已有代码，统一响应/异常、requestId 与完成日志尚未实现；不能把 Swagger 装饰器验证当作全部 API 规范完成。
-- 04 待办：已有 5 个基础 CRUD 操作、分页与搜索，当前为硬删除，Service 直接查询并返回 Prisma 记录；软删、public select、状态管理、Repository 及业务验收仍待补齐。
+- 02 待办：CLI 与 runtime 已统一 DATABASE_URL，build 已串联 generate。迁移应用、实际数据库版本、连接关闭及事务约束未验收；User 目标字段/回填方案仍待明确。
+- 03 待办：统一响应/异常与 requestId 已实现，HTTP 未验收；分页仍为 list，未切 items；完成日志已有 method/path/status/duration，未做结构化字段集。
+- 04 待办：已有 5 个基础 CRUD、公开 select 与删除前关联检查；仍为硬删除。软删、目标身份字段、状态管理、Repository 及业务验收仍待补齐。
 - 05～10：认证、授权行为、Redis、公共能力增强、完整测试/CI、部署运维仍计划中；Role/UserRole 模型不代表 RBAC 已实现，Jest/ESLint 最小工具已在 01 落地不代表 09 完成。
 
 当日复核环境：Darwin arm64、Node 24.18.0、pnpm 11.13.1；工作目录 project/。生产/测试代码的无输出类型检查、build、全仓 lint 均退出 0；format:check 退出 1，剩余 database/prisma/prisma.module.ts、database/prisma/prisma.service.ts、modules/users/users.service.ts、test/app.e2e-spec.ts 四个文件需格式化。仓库根目录 git diff --check 退出 0。命令详见[bootstrap 后续复核记录](../changelog/2026-10-23-003-bootstrap-organization.md#进度复核2026-10-24)。
@@ -45,6 +45,36 @@
 ## 角色资源 CRUD（2026-10-30）
 
 用户授权补齐角色列表、详情、更新、删除，不统一 DATABASE_URL、不改 User 模型、不实现认证授权。RolesService 已去掉脚手架字符串；列表接入 QueryRoleDto，公开字段白名单与 create 一致，已分配用户的角色删除返回 409。类型/构建/目标文件静态检查见 [CHG-20261030-001](../changelog/2026-10-30-001-role-resource-crud.md)。数据库与 HTTP 行为未验收；完整 RBAC 仍计划中。
+
+## 用户模块对齐角色写法（2026-10-30）
+
+用户授权将 Users 对齐 Roles：`userPublicSelect`、create/update 显式写入 name/email/age、`ParseIntPipe`、删除前检查角色分配。未改 Schema、未加 Repository、未取消 Prisma `@Global()`。证据见 [CHG-20261030-002](../changelog/2026-10-30-002-users-align-roles.md)。
+
+## 统一响应与异常（2026-10-30）
+
+用户授权落地阶段 03 的成功包装、全局异常与 requestId。`CommonModule` 注册中间件、拦截器与过滤器；删除接口 `data` 为 null；校验失败带字段 `details`。分页字段仍为 `list`。静态检查见 [CHG-20261030-003](../changelog/2026-10-30-003-api-envelope.md)；HTTP 未验收。
+
+## DATABASE_URL 收口（2026-10-31）
+
+用户授权统一 CLI 与运行时连接配置。`validateEnv` 校验 mysql URL；`database-options.ts` 解析 adapter；`build` 串联 generate。未执行迁移或真实连通。证据见 [CHG-20261031-001](../changelog/2026-10-31-001-database-url.md)。
+
+## User 模型字段（2026-10-31）
+
+用户授权只调整 User 的 Schema：`name` 改为 `nickname`，并增加可空的 username、password、avatar、lastLoginAt、deletedAt。未创建或应用迁移。证据见 [CHG-20261031-002](../changelog/2026-10-31-002-user-model-fields.md)。同日稍后用户资料接口已改为这些字段，创建不写密码。证据见 [CHG-20261031-007](../changelog/2026-10-31-007-create-user-dto.md)。
+
+## Permission 表（2026-10-31）
+
+用户授权在 Schema 增加 Permission：树形 `parentId`、名称、唯一 `code`、类型、资源、描述、状态和时间。主键沿用 Int 自增。未创建或应用迁移，授权行为仍未实现。证据见 [CHG-20261031-003](../changelog/2026-10-31-003-permission-model.md)。
+
+同日补充 RolePermission，用户经角色关联到权限。授权接口仍未实现。证据见 [CHG-20261031-005](../changelog/2026-10-31-005-role-permission.md)。
+
+## 迁移对齐核对（2026-11-02）
+
+只读核对本地库：三份迁移均已应用，库与 Schema 无差异。增量 SQL 已在 `20261031082805_add_role_permission`，其中 `users.name` 被删除而不是改名为 `nickname`。随后的 create-only 得到空迁移，已删除、未应用。阶段 02、04 未标为已验证。证据见 [CHG-20261102-001](../changelog/2026-11-02-001-migration-alignment.md)。
+
+## 首次设置密码（2026-11-02）
+
+安装精确版本 `argon2@0.45.1`。`POST /users/:id/password` 只在密码为空、未删除且启用时保存 Argon2id 哈希，响应不含密码。没有登录和 JWT。阶段 05 未标为已验证。证据见 [CHG-20261102-002](../changelog/2026-11-02-002-initial-password.md)。
 
 ## 功能分级
 

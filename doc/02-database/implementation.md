@@ -1,6 +1,6 @@
 # 阶段 02：数据库与 Prisma 集成
 
-更新：2026-10-23。文档状态：已更新；功能状态：进行中（已有集成代码、Schema 与迁移文件，数据库业务未验收）。前置：[01](../01-initialization/implementation.md)。命令默认在 `project/`；除验收记录外均为后续示例，不重复初始化现有项目。
+更新：2026-11-02。文档状态：已更新；功能状态：进行中（CLI 与运行时已统一 DATABASE_URL；本地库与当前 Schema 一致，三份迁移均已应用；`name` 在已应用 SQL 中是删列而不是改名；shadow 库未配置，数据库业务未验收）。前置：[01](../01-initialization/implementation.md)。命令默认在 `project/`；除验收记录外均为后续示例，不重复初始化现有项目。
 
 2026-10-23 静态盘点补充：当前已存在 Schema、迁移文件、生成客户端及 PrismaModule/Service；2026-10-22 记录中的“仅安装依赖”描述的是当时实施范围，不代表当前仅有依赖文件。同日 Swagger 任务未连接数据库、未执行迁移或生成客户端；现有数据库实现与本阶段目标的差异及实际运行状态仍待后续核对验收。
 
@@ -8,10 +8,10 @@
 
 | 范围 | 当前事实 | 待用户实施/确认 |
 | --- | --- | --- |
-| CLI/runtime 配置 | `prisma7.config.ts` 读 DATABASE_URL；PrismaService 读 DATABASE_HOST/PORT/USERNAME/PASSWORD/NAME | 统一使用经校验的 DATABASE_URL，集中解析 adapter；不读取或记录真实连接值 |
+| CLI/runtime 配置 | 2026-10-31 已统一：`validateEnv` 校验 `DATABASE_URL`；`database-options.ts` 解析 adapter；CLI `prisma7.config.ts` 使用 `env('DATABASE_URL')` | 连通、TLS、shadow 库与迁移应用仍待隔离环境验收；不读取或记录真实连接值 |
 | 模块 | `src/database/prisma/` 内为全局 PrismaModule；Users 依赖全局注入，2026-10-26 RolesModule 已显式导入同一个模块 | 其他消费者显式 imports 与移除全局作用域另批处理，复用单个 Provider |
-| 生成/构建 | Schema 已用 prisma-client，输出 src/generated/prisma；2026-10-26 按已有 Schema 重新生成含 Role/UserRole 的 Client 7.10.1；build 仍仅 nest build，无 prisma:generate 脚本 | 显式生成选项，串联 generate/build；确认干净检出可构建 |
-| 模型/迁移 | User、Role、UserRole；两份迁移文件存在 | 当前与目标字段差异见第 6 节；迁移应用情况、存量数据与真实 MySQL 版本待确认 |
+| 生成/构建 | Schema 已用 prisma-client，输出 src/generated/prisma；`build` 为 `prisma:generate && nest build` | 干净检出仍须本机有合法 DATABASE_URL 才能 generate；未宣称无环境即可构建 |
+| 模型/迁移 | User、Role、UserRole、Permission、RolePermission、UserSession。三份迁移：`20261022071222_init_users`、`20261022152735_create_role_userrole`、`20261031082805_add_role_permission`。2026-11-02 本地 `migrate status` 为已是最新，库到 Schema 的 diff 为空 | 前两份历史 SQL 未改写。第三份已应用，其中 `name` 被删除而不是改名为 `nickname`。shadow 库未配置，MySQL 版本、存量数据和约束行为未验收 |
 | 生命周期 | 有连接、断开及日志代码 | 连通、失败路径、资源释放和事务仍待隔离环境验收 |
 
 2026-10-23 盘点仅更新文档，未执行配置变更、generate、迁移或数据库检查。2026-10-26 为授权的角色创建开发补充本地 generate，未加载个人环境文件、连接数据库或执行迁移；命令及证据见 [CHG-20261026-002](../changelog/2026-10-26-002-role-create.md)。本地生成通过不代表迁移已应用或角色表可用。
@@ -159,13 +159,15 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
 ### 当前模型与迁移事实
 
-当前 User 字段为 id/name/email/age/status/phone/sex/createdAt/updatedAt；email 长度 100、唯一，phone 可空且唯一，status 为数字（默认 1）。Role、UserRole 已存在，UserRole 对 userId/roleId 联合唯一，外键为级联删除；尚无权限表和授权模块。User 无 username、passwordHash、nickname、tokenVersion、permissionVersion、deletedAt。
+当前 Schema 以 `project/prisma/schema.prisma` 为准。`users`：可空且唯一的 `username`，可空 `password`（只存哈希）、可空 `nickname`、可空 `avatar`，必填且唯一的 `email`，可空且唯一的 `phone`，可空 `sex`，`status` 默认 1。`last_login_at`、`deleted_at`、`created_at`、`updated_at` 使用下划线列名。没有 `age`，也没有 `passwordHash`、`tokenVersion`、`permissionVersion`；status 仍是数字。Role、UserRole 保留，时间列同样改为下划线；UserRole 对 userId/roleId 联合唯一，外键级联删除，没有 `updated_at`。Permission、RolePermission、UserSession（表 `sys_user_session`）已在 Schema 中。PermissionType 当前是 `DIRECTORY`、`MENU`、`BUTTON`、`API`。授权模块和认证模块都还没有。
 
-已有迁移为 `20261022071222_init_users`、`20261022152735_create_role_userrole`，SQL 使用 utf8mb4_unicode_ci。文件存在不证明已应用，也不证明与真实库无漂移；应用情况和现有数据待确认。
+用户资料接口已按 email、username、nickname、phone、sex、avatar 读写，不写 password。删除仍是硬删除，有 `deleted_at` 列不等于软删已实现。
+
+迁移文件共三份，utf8mb4_unicode_ci。`20261022071222_init_users` 和 `20261022152735_create_role_userrole` 未改写，其中用户列仍是 `name`。增量变化在已应用的 `20261031082805_add_role_permission`：新建 `permissions`、`role_permissions`、`sys_user_session`；`password`、`username`、`nickname`、`avatar` 等新列可空，没有用假密码填充。这份 SQL 对 `users.name` 是 `DROP COLUMN` 再 `ADD nickname`，不是 `RENAME`；同时删除 `age` 以及原来的驼峰时间列再新建下划线时间列。因此应用当时，`name`、`age` 和旧时间列里的值没有被拷贝到新列。该文件已经记入本地迁移历史，不能回改。2026-11-02 只读核对：`prisma migrate status` 显示 3 份迁移且数据库已是最新；库相对 Schema 的 `migrate diff` 为空。按迁移目录做 diff 因未配置 `shadowDatabaseUrl` 未能执行。同日 `migrate dev --create-only` 只写出空迁移，已删除，没有 `migrate deploy`，也没有 reset。证据见 [CHG-20261102-001](../changelog/2026-11-02-001-migration-alignment.md)。
 
 ### 目标模型与增量调整要求
 
-下方是阶段目标，尚未落实，不可整体覆盖当前 Schema。先明确 name 与 username/nickname 的业务含义及回填映射、age/phone/sex 的保留策略、数字状态映射、邮箱长度与归一化冲突处理，再设计字段新增、回填、约束及索引切换；保留已有 Role/UserRole。软删和硬删除的关系、级联行为需与 04/06 及 ADR0004 同步评审，未确认前不更改数据或既有迁移。
+下方是阶段目标，尚未落实，不可整体覆盖当前 Schema。资料字段已使用可空 `nickname`，并有可空 username、password、avatar、lastLoginAt、deletedAt；这不是下方目标模型的整体替换。phone、sex 仍保留，age 已从当前 Schema 删除。数字状态映射、邮箱长度与归一化、`password` 与目标 `passwordHash` 的命名、软删行为留到后续单独设计。已应用迁移里的 `name` 删除无法靠改旧文件挽回。保留已有 Role/UserRole。软删和硬删除的关系、级联行为需与 04/06 及 ADR0004 同步评审，未确认前不 reset、不 drop、不改写已应用迁移。
 
 目标 `users`：Int 自增 PK；username/email 唯一（含软删记录仍保留），status+deletedAt+id 组合索引用于列表；05/06 后续只追加缺失的会话/权限结构和关系，不重复创建已有角色表。时间为 UTC DateTime(3)。不设 Role 枚举锁死扩展。
 
@@ -209,7 +211,13 @@ passwordHash可空只为管理端先建PENDING资料；不能用空字符串或�
 - [ ] 唯一约束、事务回滚、连接失败与关闭验证通过。
 - [ ] Node直接运行dist成功；生产TLS和专用账户要求已记录。
 
-数据库集成验收：未执行。MySQL 实际版本、账户权限、迁移应用历史、存量数据和连通性待确认；本次仅静态盘点，未连接数据库或运行测试。2026-10-22 的依赖安装与检查单独记录于 [CHG-20261022-001](../changelog/2026-10-22-001-prisma-dependencies.md)，2026-10-23 的 Swagger 局部构建记录见 [CHG-20261023-001](../changelog/2026-10-23-001-swagger-decorators.md)，均不能据此勾选完整数据库阶段验收项。
+数据库集成验收：未执行。MySQL 实际版本、账户权限、迁移应用历史、存量数据和连通性待确认。
+
+2026-10-31 DATABASE_URL 收口局部检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、Prisma 7.10.1、TypeScript 6.0.3；运行目录 `project/`。生产与测试 `tsc --noEmit --incremental false`、目标文件 ESLint/Prettier 退出 0；使用占位 `DATABASE_URL` 执行 `prisma generate --config prisma7.config.ts` 与 `nest build` 退出 0。未执行 Jest、migrate、真实连接或读取个人连接串内容。证据见 [CHG-20261031-001](../changelog/2026-10-31-001-database-url.md)。
+
+2026-10-31 User 字段调整局部检查：同一环境，运行目录 `project/`。占位 `DATABASE_URL` 下 `prisma validate` 与 `prisma generate --config prisma7.config.ts` 退出 0，生成 Prisma Client 7.10.1。`tsc --noEmit --incremental false -p tsconfig.build.json` 与 `eslint src/modules/users --max-warnings=0` 退出 0。未执行 Jest、migrate、真实连接，也未读取个人连接串。Schema 与已有迁移不一致，不能据此勾选数据库阶段验收。证据见 [CHG-20261031-002](../changelog/2026-10-31-002-user-model-fields.md)。
+
+2026-10-22 的依赖安装与检查单独记录于 [CHG-20261022-001](../changelog/2026-10-22-001-prisma-dependencies.md)，2026-10-23 的 Swagger 局部构建记录见 [CHG-20261023-001](../changelog/2026-10-23-001-swagger-decorators.md)，均不能据此勾选完整数据库阶段验收项。
 
 ## 9. 常见问题
 

@@ -1,6 +1,6 @@
 # 阶段 03：基础接口规范
 
-更新：2026-10-23。文档状态：已更新；功能状态：进行中（Swagger 装饰器有历史局部验收；bootstrap 整理已实现并通过类型/构建/静态质量检查，运行验收暂缓，其余规范未完成）。前置：[01](../01-initialization/implementation.md)、[02](../02-database/implementation.md)。命令默认在 project/；仅第 8 节验收记录列出的命令已执行，其余是后续实施示例。
+更新：2026-10-30。文档状态：已更新；功能状态：进行中（统一响应/异常/requestId 已实现，类型/构建/静态检查通过，HTTP 运行验收暂缓；分页仍用 list，未切 items）。前置：[01](../01-initialization/implementation.md)、[02](../02-database/implementation.md)。命令默认在 project/；仅第 8 节验收记录列出的命令已执行，其余是后续实施示例。
 
 ## 1. 阶段目标
 
@@ -155,13 +155,17 @@ export class PaginationQueryDto {
 
 完成情况：代码与测试代码类型检查、构建、全仓 ESLint、本次修改文件的 Prettier 均通过。后续恢复验证时仍需确认关闭不注册、开启路径一致、监听失败不输出成功地址；本轮未执行路由/数据库验收。该批次为职责和日志收拢，不据此将阶段 03 或 09 标记整体完成。
 
+### 5.7 统一响应与异常（2026-10-30）
+
+用户授权实现 requestId、成功包装与全局异常过滤。已新增 `src/common/`：RequestContext 中间件/ALS、`ResponseInterceptor`、`AllExceptionsFilter`、`CommonModule`（`APP_INTERCEPTOR`/`APP_FILTER`）。ValidationPipe 关闭隐式转换、不回显校验值，校验失败带 `details` 字段名。删除接口 Service 返回 void，拦截器输出 `data: null`。分页仍为 `{list,total,page,pageSize}`。Swagger 工具路由不经 Controller，故不包装。类型/构建/静态检查见第 8 节；HTTP 运行验收暂缓。
+
 ## 6. 数据库设计
 
 不新增表/迁移，只消费02的Prisma异常类型。排序不得把客户端字符串直接传为SQL字段；关联/事务异常的业务含义在Service决定，过滤器仅做最后安全边界。
 
 ## 7. API 设计
 
-下表为阶段目标契约，当前 health 仍返回原始 `{status:"ok"}`，OpenAPI 默认 JSON 仍为 `/api/docs-json`；本次整理没有改变这些行为。存活与业务响应包装、JSON 地址切换应按第 5 节独立实施，测试夹具不对外发布。
+下表为阶段目标契约。2026-10-30 已落地成功包装、全局异常与 `X-Request-Id`；health 成功体为 `data.status=ok`。分页列表字段仍为 `list`（与当前 Users/Roles 一致），未切换目标 `items` 与默认 pageSize 20。OpenAPI JSON 仍为 `/api/docs-json`。Swagger UI/JSON 不经拦截器包装。
 
 | 接口名称 | Method | URL | 请求 | 返回 | 正常码 | 异常码 | 认证/权限 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -178,12 +182,16 @@ curl -i http://localhost:3000/api/v1/no-such-resource
 
 ## 8. 验收标准
 
-bootstrap 整理局部验收（2026-10-23，基于提交 5dd53a7，Darwin arm64 / Node 24.18.0 / pnpm 11.13.1 / TypeScript 6.0.3，工作目录 project/）：生产与测试代码 `tsc --noEmit --incremental false` 检查、`pnpm run build`、`pnpm run lint` 及 configure-app.ts/configure-swagger.ts/main.ts 的定向 Prettier check 均退出 0；未执行 Jest、HTTP、Swagger UI、数据库或完整阶段验收。具体命令和范围见 [CHG-20261023-003](../changelog/2026-10-23-003-bootstrap-organization.md)。以下阶段验收清单仍保持未完成状态。
+bootstrap 整理局部验收（2026-10-23，基于提交 5dd53a7，Darwin arm64 / Node 24.18.0 / pnpm 11.13.1 / TypeScript 6.0.3，工作目录 project/）：生产与测试代码 `tsc --noEmit --incremental false` 检查、`pnpm run build`、`pnpm run lint` 及 configure-app.ts/configure-swagger.ts/main.ts 的定向 Prettier check 均退出 0；未执行 Jest、HTTP、Swagger UI、数据库或完整阶段验收。具体命令和范围见 [CHG-20261023-003](../changelog/2026-10-23-003-bootstrap-organization.md)。
+
+2026-10-30 统一响应/异常局部检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、TypeScript 6.0.3；运行目录 `project/`。`tsc --noEmit --incremental false -p tsconfig.build.json`、`tsc --noEmit --incremental false -p tsconfig.test.json`、`pnpm run build`、目标文件 ESLint/Prettier 均退出 0。未执行 Jest、HTTP curl 或数据库操作。不将阶段 03 标为已验证。证据见 [CHG-20261030-003](../changelog/2026-10-30-003-api-envelope.md)。
+
+以下阶段验收清单仍保持未完成状态。
 
 - [ ] DTO边界、嵌套对象、未知字段、显式数值转换测试通过。
 - [ ] 200/201/202/400/401/403/404/409/429/500/503契约测试通过。
 - [ ] 错误无敏感内容，Guard/Pipe失败也带requestId和正确日志。
-- [ ] 分页排序有白名单/上限，health不重复包装。
+- [ ] 分页排序有白名单/上限；health 成功包装一层，data.status=ok。
 - [ ] OpenAPI契约与实际响应一致，生产默认禁用工具路由。
 
 删除测试文件前的局部验收记录（2026-10-23）：Darwin arm64、Node 24.18.0、pnpm 11.13.1、TypeScript 6.0.3、@nestjs/swagger 12.0.2，目录 `project/`。`pnpm run build`、`pnpm run typecheck`、`pnpm run test --runInBand` 均退出 0；4 个测试套件、31 项测试通过，其中新增 `src/bootstrap/swagger.spec.ts` 的 4 项 OpenAPI 契约测试。对本次变更的 8 个 TS 文件运行 ESLint 和 Prettier 检查均通过；仓库 `git diff --check` 通过。

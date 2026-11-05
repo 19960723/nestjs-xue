@@ -1,6 +1,6 @@
 # 项目技术文档导航
 
-更新：2026-10-30（Asia/Shanghai）。文档体系：已初始化；应用整体：进行中。阶段 01 有历史本地验收；02～04 已有数据库、基础 CRUD 和 Swagger 实现，完整阶段及数据库业务仍未验收。角色资源 CRUD 已落地，授权未实现；详见[角色资源 CRUD](00-overview/project-overview.md#角色资源-crud2026-10-30)。
+更新：2026-11-02（Asia/Shanghai）。文档体系：已初始化；应用整体：进行中。阶段 01 有历史本地验收；02～04 已有数据库与 CRUD；03 已落地统一包装/异常/requestId（HTTP 未验收）。本地三份迁移已应用，库与 Schema 一致；已应用 SQL 删除了 `name` 而不是改名。角色资源 CRUD 已落地。已有首次设密，登录和授权 Guard 未实现。
 
 ## 从这里开始
 
@@ -17,11 +17,11 @@
 | 阶段 | 实施文档 | 文档状态 | 功能状态 | 依赖 |
 | --- | --- | --- | --- | --- |
 | 01 | [环境与初始化](01-initialization/implementation.md) | 已更新 | 已验证（本地） | 环境盘点 |
-| 02 | [MySQL与Prisma7](02-database/implementation.md) | 已更新 | 进行中（已有集成代码，数据库未验收） | 01 |
-| 03 | [API规范与可观测性基础](03-api-standards/implementation.md) | 已更新 | 进行中（现有接口 Swagger 已本地验证） | 01/02 |
-| 04 | [用户管理CRUD](04-user-management/implementation.md) | 已更新 | 进行中（已有基础 CRUD，数据库业务未验收） | 02/03 |
-| 05 | [身份认证与会话](05-authentication/implementation.md) | 已编写 | 计划中 | 04 |
-| 06 | [RBAC授权](06-authorization/implementation.md) | 已更新 | 计划中（角色资源 CRUD 已实现，数据库行为未验收，授权未实现） | 05 |
+| 02 | [MySQL与Prisma7](02-database/implementation.md) | 已更新 | 进行中（DATABASE_URL 已统一；本地三份迁移已应用且与 Schema 一致，shadow 与数据库业务未验收） | 01 |
+| 03 | [API规范与可观测性基础](03-api-standards/implementation.md) | 已更新 | 进行中（统一包装/异常/requestId 已实现，HTTP 未验收） | 01/02 |
+| 04 | [用户管理CRUD](04-user-management/implementation.md) | 已更新 | 进行中（资料字段已接入；首次设密已实现，数据库业务未验收） | 02/03 |
+| 05 | [身份认证与会话](05-authentication/implementation.md) | 已更新 | 进行中（Argon2id 与首次设密已实现；登录、JWT 和会话撤销未实现） | 04 |
+| 06 | [RBAC授权](06-authorization/implementation.md) | 已更新 | 计划中（角色资源 CRUD 已实现；Permission 与 RolePermission 已在已应用迁移中，授权未实现） | 05 |
 | 07 | [Redis缓存与共享限流](07-redis/implementation.md) | 已编写 | 计划中 | 04～06 |
 | 08 | [公共能力与审计](08-common/implementation.md) | 已编写 | 计划中 | 02～07 |
 | 09 | [测试质量与CI](09-testing/implementation.md) | 已更新 | 计划中（最小工具已在01验证，当前测试执行暂缓） | 01～08 |

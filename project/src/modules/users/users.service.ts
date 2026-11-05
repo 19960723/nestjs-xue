@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../database/prisma/prisma.service.js';
+import { PasswordService } from '../auth/password.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { QueryUserDto } from './dto/query-user.dto.js';
@@ -13,7 +14,10 @@ import { userPublicSelect } from './user.select.js';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly passwords: PasswordService,
+  ) {}
 
   private handleWriteError(error: unknown): never {
     if (
@@ -119,6 +123,60 @@ export class UsersService {
     }
 
     return user;
+  }
+
+  async setInitialPassword(id: number, password: string) {
+    const passwordHash = await this.passwords.hash(password);
+    const updated = await this.prisma.user.updateMany({
+      where: {
+        id,
+        password: null,
+        deletedAt: null,
+        status: 1,
+      },
+      data: { password: passwordHash },
+    });
+
+    if (updated.count === 1) {
+      return this.findOne(id);
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        deletedAt: true,
+        status: true,
+        password: true,
+      },
+    });
+
+    if (!existing || existing.deletedAt) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    if (existing.status !== 1) {
+      throw new ConflictException('用户已禁用');
+    }
+
+    if (existing.password !== null) {
+      throw new ConflictException('密码已设置');
+    }
+
+    const retried = await this.prisma.user.updateMany({
+      where: {
+        id,
+        password: null,
+        deletedAt: null,
+        status: 1,
+      },
+      data: { password: passwordHash },
+    });
+
+    if (retried.count === 1) {
+      return this.findOne(id);
+    }
+
+    throw new ConflictException('密码已设置');
   }
 
   async update(id: number, dto: UpdateUserDto) {

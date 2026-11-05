@@ -8,6 +8,8 @@ import {
   Delete,
   Query,
   ParseIntPipe,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -26,6 +28,7 @@ import { UsersService } from './users.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { QueryUserDto } from './dto/query-user.dto.js';
+import { SetInitialPasswordDto } from './dto/set-initial-password.dto.js';
 
 @ApiTags('users')
 @Controller('users')
@@ -51,6 +54,26 @@ export class UsersController {
   @ApiBadRequestResponse({ description: '分页或搜索参数不符合校验规则' })
   findAll(@Query() query: QueryUserDto) {
     return this.usersService.findAll(query);
+  }
+
+  @Post(':id/password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '首次设置密码',
+    description:
+      '仅当密码为空、用户未删除且为启用状态时写入密码哈希。响应不包含密码。当前与其他用户接口一样没有认证，只适合隔离的本地管理。',
+  })
+  @ApiParam({ name: 'id', description: '用户 ID', type: 'integer', example: 1 })
+  @ApiBody({ type: SetInitialPasswordDto })
+  @ApiOkResponse({ description: '密码已设置后的用户资料', type: User })
+  @ApiBadRequestResponse({ description: '密码不符合校验规则' })
+  @ApiNotFoundResponse({ description: '用户不存在' })
+  @ApiConflictResponse({ description: '用户已禁用或密码已设置' })
+  setInitialPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetInitialPasswordDto,
+  ) {
+    return this.usersService.setInitialPassword(id, dto.password);
   }
 
   @Get(':id')

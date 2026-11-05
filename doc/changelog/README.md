@@ -2,6 +2,18 @@
 
 | 日期 | 编号 | 类型 | 内容 |
 | --- | --- | --- | --- |
+| 2026-11-02 | [CHG-20261102-002](2026-11-02-002-initial-password.md) | 新增 | 密码为空的启用用户可首次设密，存 Argon2id；无登录 |
+| 2026-11-02 | [CHG-20261102-001](2026-11-02-001-migration-alignment.md) | 核对 | 本地三份迁移已应用且与 Schema 一致；空增量已删除；name 为删列 |
+| 2026-10-31 | [CHG-20261031-008](2026-10-31-008-user-response-last-login.md) | 修改 | 用户公开响应增加 lastLoginAt |
+| 2026-10-31 | [CHG-20261031-007](2026-10-31-007-create-user-dto.md) | 修改 | 用户创建/更新改为资料字段，不接收密码 |
+| 2026-10-31 | [CHG-20261031-006](2026-10-31-006-user-session.md) | 新增 | Schema 增加 sys_user_session；未改业务模块，未创建迁移 |
+| 2026-10-31 | [CHG-20261031-005](2026-10-31-005-role-permission.md) | 新增 | Schema 增加 RolePermission，连通用户、角色与权限 |
+| 2026-10-31 | [CHG-20261031-004](2026-10-31-004-permission-type.md) | 修改 | Permission.type 改为 M/C/A/API 枚举 |
+| 2026-10-31 | [CHG-20261031-003](2026-10-31-003-permission-model.md) | 新增 | Schema 增加 Permission 树形权限表；未创建迁移，授权未实现 |
+| 2026-10-31 | [CHG-20261031-002](2026-10-31-002-user-model-fields.md) | 修改 | User 增加 username/password/avatar/lastLoginAt/deletedAt，name 改为 nickname；未创建迁移 |
+| 2026-10-31 | [CHG-20261031-001](2026-10-31-001-database-url.md) | 修改 | CLI 与运行时统一 DATABASE_URL 校验与 adapter 解析；build 串联 generate |
+| 2026-10-30 | [CHG-20261030-003](2026-10-30-003-api-envelope.md) | 新增/修改 | 统一成功包装、全局异常与 requestId；删除 data 为 null；HTTP 未验收 |
+| 2026-10-30 | [CHG-20261030-002](2026-10-30-002-users-align-roles.md) | 修改 | 用户 CRUD 对齐角色写法：公开 select、显式写入、ParseIntPipe、删除前检查角色分配 |
 | 2026-10-30 | [CHG-20261030-001](2026-10-30-001-role-resource-crud.md) | 修改 | 补齐角色列表/详情/更新/删除，接入查询 DTO 与删除前分配检查；类型/构建通过，数据库行为未验收 |
 | 2026-10-26 | [CHG-20261026-002](2026-10-26-002-role-create.md) | 修改 | 实现角色创建、字段白名单及编码冲突 409；重新生成本地 Prisma Client，类型/构建通过，数据库行为未验收 |
 | 2026-10-26 | [CHG-20261026-001](2026-10-26-001-role-dto-validation.md) | 修改 | 完善角色创建/更新/查询 DTO 的字段校验、空值规则和 Swagger；类型/构建及目标文件静态检查通过 |

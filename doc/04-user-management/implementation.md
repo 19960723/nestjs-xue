@@ -1,6 +1,6 @@
 # 阶段 04：用户管理 CRUD
 
-更新：2026-10-23。文档状态：已更新；功能状态：进行中（已有基础 CRUD 与 Swagger 响应模型，数据库业务及目标行为未验收）。前置：[02](../02-database/implementation.md)、[03](../03-api-standards/implementation.md)。本阶段接口仅在隔离本地回环地址开发，05/06完成后才能对外开放。
+更新：2026-11-02。文档状态：已更新；功能状态：进行中（资料字段已接入；`POST /users/:id/password` 只在密码为空时写入哈希；创建和资料更新仍不接收密码；删除仍为硬删除；数据库与 HTTP 未验收）。前置：[02](../02-database/implementation.md)、[03](../03-api-standards/implementation.md)。本阶段接口仅在隔离本地回环地址开发，05/06完成后才能对外开放。
 
 ## 1. 阶段目标
 
@@ -27,7 +27,7 @@ Controller处理HTTP，Service负责不变量/事务，UsersRepository负责查�
 
 无新运行时依赖；复用02/03。Swagger的PartialType从`@nestjs/swagger`导入，避免额外引入mapped-types。
 
-当前已移动到 `project/src/modules/users/`，保留已有 Module/Controller/Service、输入 DTO、OpenAPI User 和响应模型，不再执行 nest g 生成第二套骨架。AppModule 和 UsersService 已更新相对 `.js` 导入；UsersService 与原路径 HEAD 比较（忽略空白及路径层级）业务内容一致。Prisma 目录尚未移动，新增 Repository 与显式 PrismaModule 依赖单独实施；完整检查结果见本阶段第 8 节。
+当前已在 `project/src/modules/users/`，Prisma 源模块在 `src/database/prisma/`。保留已有 Module/Controller/Service、输入 DTO、OpenAPI User；PrismaModule 仍为 `@Global()`，UsersModule 不重复显式导入。未新增 Repository。完整检查结果见本阶段第 8 节。
 
 先核对 02 的当前模型及增量方案、03 的实际与目标契约，再改变字段或删除行为。测试恢复后补有价值的断言，本次不运行测试。当前尚无认证，开发监听 127.0.0.1 且不得发布到公网/共享环境；阶段 05 全局认证、06 权限后才切换目标 API 访问规则。
 
@@ -35,11 +35,11 @@ Controller处理HTTP，Service负责不变量/事务，UsersRepository负责查�
 
 ### 当前实现收拢顺序（待用户实施）
 
-1. 先完成目录移动，保留 name/email/age 输入、分页默认 1/10 和 `{list,total,page,pageSize}`、硬删除及原返回消息；目录批次不改 API。
-2. 基于当前实际字段落实 public select/响应映射和显式写入白名单；已有 `entities/user.entity.ts` 与 `dto/user-response.dto.ts` 仅描述 OpenAPI，不会过滤 Prisma 实际输出。先防止未来敏感字段随 Schema 扩展而被直接返回，再按目标字段演进。
-3. 新增具体 UsersRepository，迁入已有查询及数据库错误识别；Service 管业务、事务与 HTTP 语义转换，Controller 管路由与 DTO。UsersModule 显式导入同一 PrismaModule 后，再移除全局依赖；不重复注册客户端或创建 BaseRepository。
-4. 单独补正整数 ID、email 长度、PATCH 的 undefined/null/空对象规则和 keyword 长度；当前 `+id`、PartialType 的 null 跳过和“所有 P2002 都报邮箱冲突”、先查后更新/删除的竞争窗口均需处理。异常含义按实际约束区分，不向外输出原始数据库错误。
-5. 与 02/ADR0004 明确字段、状态映射与身份策略后，再单独实现软删/状态/版本及必要增量迁移；保留当前 name/age/phone/sex 数据，未明确映射前不直接替换为 username/nickname。最后按 03 独立切换统一包装、分页及删除契约。
+1. 目录移动已完成。2026-10-31 起创建入参为邮箱必填，用户名、昵称、手机号、性别、头像可选；分页默认 1/10，响应仍为 `{list,total,page,pageSize}`。
+2. 2026-10-30 已落实公开 select、显式写入、`ParseIntPipe`、删除前检查 `user_roles`（已分配 409）。2026-10-31 写入字段改为 email/username/nickname/phone/sex/avatar，不写 password。未新增 Repository，删除仍是硬删除。
+3. 新增具体 UsersRepository、UsersModule 显式导入 PrismaModule 后再移除 `@Global()` 仍单独实施；不创建 BaseRepository。
+4. 邮箱最长 100，唯一冲突已按邮箱、用户名、手机号区分。空 PATCH、keyword 长度限制仍待补。
+5. 创建和资料更新都不接收密码。2026-11-02 增加 `POST /users/:id/password`：密码 15～128、不 trim，仅当密码为空、未删除且启用时写入 Argon2id 哈希。已有密码、已禁用返回 409，不存在或已标记删除返回 404。登录、改密和 Guard 仍未实现。软删行为、状态枚举和版本字段另批实施。本地库已有这些资料列，见 [02 第 6 节](../02-database/implementation.md#6-数据库设计)；其他环境未核对。统一包装已在 03 落地，分页字段仍是 `list`。
 
 下方 5.1～5.5 是完整阶段目标；只有前置模型/契约具备后才实施。数据库约束、事务和软删验收需隔离环境，目录和 Swagger 整理不能替代这些证据。
 
@@ -104,23 +104,24 @@ return { items, total, page, pageSize };
 
 ## 6. 数据库设计
 
-目标复用 02 的完整 User Schema，02 模型到位后本阶段不重复迁移。当前 Schema 尚无 deletedAt/版本等目标字段，不能按“无新迁移”直接实现软删；缺失字段和存量数据方案回到 [02 第 6 节](../02-database/implementation.md#6-数据库设计)处理。永久占用 username/email 是 ADR0004 中的目标策略，待明确后实施；版本字段只由 Service 更新。若后续需要恢复用户，必须另定状态/身份冲突/权限恢复规则；本阶段不提供恢复接口。
+目标仍复用 02 的完整 User Schema，本阶段不另写一套迁移。Schema 已有可空 `deletedAt`，没有版本字段。删除接口仍是硬删除，不能把“列已存在”当成软删已实现。已应用迁移删除了 `name` 而不是改名为 `nickname`，回填见 [02 第 6 节](../02-database/implementation.md#6-数据库设计)。永久占用 username/email 仍是 ADR0004 的目标策略。版本字段只由 Service 更新。若后续需要恢复用户，必须另定状态/身份冲突/权限恢复规则；本阶段不提供恢复接口。
 
 ## 7. API 设计
 
 ### 当前代码契约与本次 Swagger 补充（2026-10-23）
 
-现有实现已移动到 `project/src/modules/users/`，与下方阶段目标存在差异。本次以实际代码添加装饰器和响应模型，不变更业务行为。输入为 `name`（必填，最长 50）、`email`（必填，邮箱格式）、`age`（可选，整数 0..150）；Update 通过 Swagger 的 PartialType 将全部输入字段改为可选。可选字段的现有 IsOptional 会跳过 null，age 文档标记可空；name/email 的 null 与非空数据库约束冲突仍待后续处理，本次不改变校验。
+现有实现已移动到 `project/src/modules/users/`，与下方阶段目标存在差异。创建必填 `email`（trim、转小写、最长 100）。可选且可空：`username`、`nickname`（出现时 1～50）、`phone`（出现时 1～20）、`sex`（0/1/2）、`avatar`（出现时 1～255）。创建和资料更新不接收 `password`。Update 通过 Swagger 的 PartialType 将资料字段改为可选，`skipNullProperties: false`，可空字段可传 `null` 清空；服务层拒绝 `email: null`。首次设密使用单独的 `POST /users/:id/password`，只接受 15～128 的密码字符串且不 trim。成功后仍不能登录，登录留到阶段 05 后续步骤。该接口目前没有认证。
 
 | Method | 路径（前缀 /api/v1） | 当前请求与响应 | 已实现业务异常 |
 | --- | --- | --- | --- |
-| POST | /users | CreateUserDto → 201 User | 400 校验失败、409 邮箱冲突 |
+| POST | /users | email 必填，username/nickname/phone/sex/avatar 可选 → 201 User | 400 校验失败、409 邮箱/用户名/手机号冲突 |
+| POST | /users/:id/password | password 必填，15～128，不 trim → 200 User | 400 校验失败、404 用户不存在、409 已禁用或密码已设置 |
 | GET | /users | page=1、pageSize=10（上限100）、keyword 可选 → 200 `{list,total,page,pageSize}` | 400 校验失败 |
 | GET | /users/:id | id → 200 User | 404 用户不存在 |
 | PATCH | /users/:id | id + UpdateUserDto → 200 User | 400 校验失败、404、409 |
-| DELETE | /users/:id | id → 200 `{message:"删除成功"}`，当前为硬删除 | 404 |
+| DELETE | /users/:id | id → 200 统一包装且 `data: null`，未分配角色时硬删除 | 404、409 已分配角色 |
 
-User 响应包含 id/name/email/age/status/phone/sex/createdAt/updatedAt；age/phone/sex 为必然存在但可为 null 的字段，日期在 JSON 中为 date-time 字符串。未 include 的 roles 不列入响应。当前无认证授权，不标记接口需要 Bearer；正整数 ID 校验、软删、public select、统一包装等阶段目标尚未完成。数据库约束和并发行为未在本次验收。
+User 查询使用 `userPublicSelect`：id/username/nickname/avatar/email/phone/sex/status/lastLoginAt/createdAt/updatedAt。username、nickname、avatar、phone、sex、lastLoginAt 可为 null。不返回 password、deletedAt，也不 include roles。创建/更新只写上述资料字段，不写 password，status 用数据库默认值。首次设密在事务外计算 Argon2id 哈希，再用 `password` 为空、`deletedAt` 为空且 `status` 为 1 的条件更新；响应仍是公开字段。列表关键词匹配用户名、昵称或邮箱。路径 ID 使用 `ParseIntPipe`（非法 ID 400）。当前无认证授权；软删行为未实现。数据库约束和并发行为未验收。
 
 ### 阶段目标契约（后续实施）
 
@@ -159,6 +160,22 @@ curl -i -X PATCH http://localhost:3000/api/v1/users/1 -H "Authorization: Bearer 
 
 移动后静态检查（2026-10-23）：Users 导入层级和模块注册已更新；检查初期生产类型检查、构建及测试代码类型检查通过，未运行测试。随后删除模板文件曾因 AppModule 遗留引用导致类型检查失败；用户已清理引用，最新生产/测试代码类型检查通过，旧 E2E 问候断言现已删除，整体整理未验收；本轮复查生产/测试代码类型检查、构建及定向 ESLint 通过，4 个文件格式检查未通过。完整命令、快照限制与待办见[整理检查记录](../changelog/2026-10-23-002-project-organization.md#目录移动后检查2026-10-23)。
 
+2026-10-30 对齐角色写法局部检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、TypeScript 6.0.3；运行目录 `project/`。以下命令均退出 0：
+
+- `pnpm exec tsc --noEmit --incremental false -p tsconfig.build.json`
+- `pnpm run build`
+- `pnpm exec eslint src/modules/users --max-warnings=0`
+- `pnpm exec prettier --check src/modules/users`
+- 仓库根目录 `git diff --check`
+
+未执行 Jest、HTTP、数据库连接/迁移。不将阶段 04 标为已验证。证据见 [CHG-20261030-002](../changelog/2026-10-30-002-users-align-roles.md)。
+
+2026-10-31 Schema 字段调整曾连带改过用户模块，同日已按用户要求改回。当时占位 `DATABASE_URL` 下的 validate/generate 只说明 Schema 可生成；改回后用户模块仍写 `name`，与 Schema 的 `nickname` 不一致，不能把那次类型检查当作当前用户代码已通过。未执行 Jest、HTTP、migrate 或真实连接。证据见 [CHG-20261031-002](../changelog/2026-10-31-002-user-model-fields.md)。
+
+同日后续按确认的计划接入资料字段。Darwin arm64、Node 24.18.0、pnpm 11.13.1、Prisma 7.10.1、TypeScript 6.0.3；运行目录 `project/`。占位 `DATABASE_URL` 下 `prisma validate` 与 `prisma generate --config prisma7.config.ts` 退出 0。`tsc --noEmit --incremental false -p tsconfig.build.json`、`eslint src/modules/users --max-warnings=0`、`prettier --check src/modules/users` 退出 0。未执行 Jest、HTTP、migrate 或真实连接。不将阶段 04 标为已验证。证据见 [CHG-20261031-007](../changelog/2026-10-31-007-create-user-dto.md)。
+
+2026-11-02 首次设密的静态检查见 [CHG-20261102-002](../changelog/2026-11-02-002-initial-password.md)。未执行 Jest、HTTP 或迁移。不将阶段 04 标为已验证。
+
 ## 9. 常见问题
 
 | 症状 | 排查与处理 |
@@ -171,4 +188,4 @@ curl -i -X PATCH http://localhost:3000/api/v1/users/1 -H "Authorization: Bearer 
 
 ## 10. 后续扩展
 
-[05](../05-authentication/implementation.md)增加凭据与会话，不把密码混入资料DTO；[06](../06-authorization/implementation.md)完成管理权限与管理员保护；08补事务审计。批量导入、硬删除、身份复用和全模糊检索均需单独业务需求。
+[05](../05-authentication/implementation.md)继续完成登录与会话；首次设密已单独实现，不把密码混入资料 DTO。[06](../06-authorization/implementation.md)完成管理权限与管理员保护；08补事务审计。批量导入、硬删除、身份复用和全模糊检索均需单独业务需求。

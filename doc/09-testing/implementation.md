@@ -115,7 +115,7 @@ export default {
 
 恢复验证后先分清两类 HTTP 测试：
 
-- HTTP 隔离测试：编译 Nest 测试模块前，通过 DI 替换 PrismaService 或具体 Repository，阻止真实数据库构造/连接，仍调用共用 configureApp 验证 Pipe、路由、DTO、状态码及响应。若尚未统一 DATABASE_URL 配置，先完成 02 配置收拢，不借用个人数据库配置。
+- HTTP 隔离测试：编译 Nest 测试模块前，通过 DI 替换 PrismaService 或具体 Repository，阻止真实数据库构造/连接，仍调用共用 configureApp 验证 Pipe、路由、DTO、状态码及响应。DATABASE_URL 已由阶段 02 收口；HTTP 隔离测试仍应注入占位 URL 并替换 PrismaService，不借用个人数据库配置。
 - 真实数据库 E2E：使用第 5.3 节显式隔离库，完整装配应用，验证真实约束、事务及业务流程；不得把上面的替身测试当成真实数据库验收。
 
 需要验证 Swagger UI/JSON 注册与关闭行为的测试复用 configureSwagger；仅隔离生成 OpenAPI 的测试不证明工具路由已受访问控制。两类测试使用明确的文件匹配和独立命令/配置，后续落地时回填具体名称，避免同一 E2E 命令隐式连接未知数据库。

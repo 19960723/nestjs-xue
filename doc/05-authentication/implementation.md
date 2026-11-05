@@ -1,6 +1,6 @@
 # 阶段 05：身份认证系统
 
-更新：2026-10-21。文档状态：已编写；功能状态：计划中。前置：[04](../04-user-management/implementation.md)及01的Jest工具。安全策略见 [ADR0004](../decisions/0004-security-and-data-policy.md)。默认命令在project/。
+更新：2026-11-02。文档状态：已更新；功能状态：进行中（`sys_user_session` 已在已应用迁移中；已有 Argon2id 哈希与首次设密。登录、JWT、刷新、退出和重置未实现，HTTP 未验收）。前置：[04](../04-user-management/implementation.md)及01的Jest工具。安全策略见 [ADR0004](../decisions/0004-security-and-data-policy.md)。默认命令在project/。
 
 ## 1. 阶段目标
 
@@ -101,7 +101,11 @@ pnpm exec nest g controller modules/auth --no-spec
 
 ## 6. 数据库设计
 
-在02的User增加 `sessions AuthSession[]`、`passwordResetTokens PasswordResetToken[]`；以下新表为本阶段Schema增量。FK Restrict防误删用户；到期会话/令牌按保留策略清理子表后父表，不在请求中硬删。
+当前会话表以 Schema 里的 `UserSession`（`sys_user_session`）为准，并已包含在 `20261031082805_add_role_permission`。删除用户时是 Cascade，不是下方草稿里的 Restrict。未建密码重置表，未改这张会话表。2026-11-02 只增加 `AuthModule` / `PasswordService`，以及 `POST /users/:id/password`：密码为空、未删除且启用时写入 Argon2id。不登录、不签发 JWT。证据见 [CHG-20261102-002](../changelog/2026-11-02-002-initial-password.md)。
+
+下方代码块仍是更早的目标草稿：会话与 Refresh Token 分表，主键为 UUID。当前以 Schema 里的 `UserSession` 为准，不能用草稿覆盖它。草稿中的分表轮换、重放检测和密码重置仍未落地。
+
+在02的User增加 `sessions AuthSession[]`、`passwordResetTokens PasswordResetToken[]`；以下新表为本阶段原先拟定的 Schema 增量。FK Restrict防误删用户；到期会话/令牌按保留策略清理子表后父表，不在请求中硬删。
 
 ```prisma
 model AuthSession {
@@ -187,6 +191,8 @@ curl -i -X POST http://localhost:3000/api/v1/auth/refresh -H 'Content-Type: appl
 - [ ] 重置单次/到期/竞争和可信交付验收；未配置渠道时保持关闭且未完成。
 
 验收记录：未执行。密码重置交付渠道与浏览器token存储方案待产品确认。
+
+2026-10-31 UserSession 仅做 Schema 检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、Prisma 7.10.1；运行目录 `project/`。占位 `DATABASE_URL` 下 `prisma validate` 与 `prisma generate --config prisma7.config.ts` 退出 0。未改业务模块，未执行 tsc、Jest、migrate 或真实连接。证据见 [CHG-20261031-006](../changelog/2026-10-31-006-user-session.md)。
 
 ## 9. 常见问题
 
