@@ -46,6 +46,7 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-11-10-002-access-guard.md](changelog/2026-11-10-002-access-guard.md)
 - [doc/changelog/2026-11-10-001-module-comments.md](changelog/2026-11-10-001-module-comments.md)
 - [doc/changelog/2026-11-09-001-username-login.md](changelog/2026-11-09-001-username-login.md)
 - [doc/changelog/2026-11-02-002-initial-password.md](changelog/2026-11-02-002-initial-password.md)

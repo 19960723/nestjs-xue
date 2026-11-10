@@ -50,7 +50,7 @@ function positiveIntString(value: unknown): number | null {
  * 校验 Access，通过后只把 { id, sessionId } 挂到请求上。
  * 缺 token、签名或签发方不符、sub/sid 非法、会话撤销或过期、用户禁用或已删，
  * 都返回同一条 401。数据库故障返回 503，不放行。日志不记录 token。
- * AuthModule 还没有把它注册为全局 Guard，所以这段逻辑目前不会自动拦截路由。
+ * AuthModule 已把它注册为全局 Guard。只有标了 @Public() 的路由跳过校验。
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {

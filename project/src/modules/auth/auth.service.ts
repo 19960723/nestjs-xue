@@ -3,11 +3,14 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../database/prisma/prisma.service.js';
+import { userPublicSelect } from '../users/user.select.js';
+import { isDatabaseError } from './database-error.js';
 import { PasswordService } from './password.service.js';
 
 const LOGIN_FAILED = '用户名或密码错误';
@@ -137,6 +140,32 @@ export class AuthService {
       tokenType: 'Bearer',
       expiresIn: accessTtl,
     };
+  }
+
+  /**
+   * 返回当前 Access 对应用户的公开资料。
+   * Guard 已核对会话；这里再确认用户仍启用且未删除，避免把刚被禁用的资料返回出去。
+   * 查不到时返回 401，不使用 404，避免暴露账号是否存在。
+   */
+  async currentUser(userId: number) {
+    try {
+      const user = await this.prisma.user.findFirst({
+        where: { id: userId, deletedAt: null, status: 1 },
+        select: userPublicSelect,
+      });
+      if (!user) {
+        throw new UnauthorizedException('身份无效');
+      }
+      return user;
+    } catch (error: unknown) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      if (isDatabaseError(error)) {
+        throw new ServiceUnavailableException('服务暂不可用');
+      }
+      throw error;
+    }
   }
 
   /** 签名失败后的补偿。只标记撤销，不删除记录，也不把 token 写入日志。 */

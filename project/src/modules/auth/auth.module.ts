@@ -1,14 +1,16 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
+import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { PasswordService } from './password.service.js';
 
 /**
  * 认证模块。JwtModule 只提供 HS256 和已校验的 issuer、audience、有效期。
+ * 全局 JwtAuthGuard 默认拦截 HTTP 路由，只有 @Public() 放行。
  * 导出 PasswordService 给首次设密使用。
- * JwtAuthGuard 已写好，这里还没有注册为 APP_GUARD，现有路由尚未被它拦截。
  */
 @Module({
   imports: [
@@ -26,7 +28,11 @@ import { PasswordService } from './password.service.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [PasswordService, AuthService],
+  providers: [
+    PasswordService,
+    AuthService,
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+  ],
   exports: [PasswordService],
 })
 export class AuthModule {}

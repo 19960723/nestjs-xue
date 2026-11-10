@@ -1,10 +1,13 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../auth/decorators/public.decorator.js';
 
 /** 存活探针：仅表明 HTTP 应用可响应；数据库/Redis 就绪检查由后续阶段实现。 */
 @ApiTags('health')
 @Controller('health')
 export class HealthController {
+  /** 探针不携带身份。全局 Guard 只放行这个方法。 */
+  @Public()
   @Get('live')
   @ApiOperation({ summary: '检查 HTTP 应用存活状态' })
   @ApiOkResponse({

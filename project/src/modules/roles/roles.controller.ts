@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiBody,
   ApiConflictResponse,
   ApiCreatedResponse,
@@ -19,6 +20,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { RolesService } from './roles.service.js';
 import { CreateRoleDto } from './dto/create-role.dto.js';
@@ -29,9 +31,11 @@ import { Role } from './entities/role.entity.js';
 
 /**
  * 角色 HTTP 入口。只做路由和文档，唯一性与删除约束在 RolesService。
- * 这些路由目前没有认证或权限 Guard。
+ * 全部路由都要有效 Access。角色权限判断留给阶段 06。
  */
 @ApiTags('角色管理')
+@ApiBearerAuth()
+@ApiUnauthorizedResponse({ description: '身份无效' })
 @Controller('roles')
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}

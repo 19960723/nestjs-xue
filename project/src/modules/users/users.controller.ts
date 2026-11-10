@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiBody,
   ApiConflictResponse,
   ApiCreatedResponse,
@@ -21,6 +22,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { User } from './entities/user.entity.js';
 import { UserPageDto } from './dto/user-response.dto.js';
@@ -32,9 +34,11 @@ import { SetInitialPasswordDto } from './dto/set-initial-password.dto.js';
 
 /**
  * 用户 HTTP 入口。只做路由和文档，业务规则在 UsersService。
- * 这些路由目前没有认证 Guard，只适合隔离的本地管理。
+ * 全部路由都要有效 Access，权限区分留给阶段 06。
  */
 @ApiTags('users')
+@ApiBearerAuth()
+@ApiUnauthorizedResponse({ description: '身份无效' })
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -65,7 +69,7 @@ export class UsersController {
   @ApiOperation({
     summary: '首次设置密码',
     description:
-      '仅当密码为空、用户未删除且为启用状态时写入密码哈希。响应不包含密码。当前与其他用户接口一样没有认证，只适合隔离的本地管理。',
+      '仅当密码为空、用户未删除且为启用状态时写入密码哈希。响应不包含密码。调用前需要有效 Access。',
   })
   @ApiParam({ name: 'id', description: '用户 ID', type: 'integer', example: 1 })
   @ApiBody({ type: SetInitialPasswordDto })
