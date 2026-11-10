@@ -1,6 +1,6 @@
 # 阶段 02：数据库与 Prisma 集成
 
-更新：2026-11-02。文档状态：已更新；功能状态：进行中（CLI 与运行时已统一 DATABASE_URL；本地库与当前 Schema 一致，三份迁移均已应用；`name` 在已应用 SQL 中是删列而不是改名；shadow 库未配置，数据库业务未验收）。前置：[01](../01-initialization/implementation.md)。命令默认在 `project/`；除验收记录外均为后续示例，不重复初始化现有项目。
+更新：2026-11-10。文档状态：已更新；功能状态：进行中（CLI 与运行时已统一 DATABASE_URL；本地库与当前 Schema 一致，五份迁移均已应用；`name` 在已应用 SQL 中是删列而不是改名；shadow 库未配置，数据库业务未验收）。前置：[01](../01-initialization/implementation.md)。命令默认在 `project/`；除验收记录外均为后续示例，不重复初始化现有项目。
 
 2026-10-23 静态盘点补充：当前已存在 Schema、迁移文件、生成客户端及 PrismaModule/Service；2026-10-22 记录中的“仅安装依赖”描述的是当时实施范围，不代表当前仅有依赖文件。同日 Swagger 任务未连接数据库、未执行迁移或生成客户端；现有数据库实现与本阶段目标的差异及实际运行状态仍待后续核对验收。
 
@@ -11,7 +11,7 @@
 | CLI/runtime 配置 | 2026-10-31 已统一：`validateEnv` 校验 `DATABASE_URL`；`database-options.ts` 解析 adapter；CLI `prisma7.config.ts` 使用 `env('DATABASE_URL')` | 连通、TLS、shadow 库与迁移应用仍待隔离环境验收；不读取或记录真实连接值 |
 | 模块 | `src/database/prisma/` 内为全局 PrismaModule；Users 依赖全局注入，2026-10-26 RolesModule 已显式导入同一个模块 | 其他消费者显式 imports 与移除全局作用域另批处理，复用单个 Provider |
 | 生成/构建 | Schema 已用 prisma-client，输出 src/generated/prisma；`build` 为 `prisma:generate && nest build` | 干净检出仍须本机有合法 DATABASE_URL 才能 generate；未宣称无环境即可构建 |
-| 模型/迁移 | User、Role、UserRole、Permission、RolePermission、UserSession。三份迁移：`20261022071222_init_users`、`20261022152735_create_role_userrole`、`20261031082805_add_role_permission`。2026-11-02 本地 `migrate status` 为已是最新，库到 Schema 的 diff 为空 | 前两份历史 SQL 未改写。第三份已应用，其中 `name` 被删除而不是改名为 `nickname`。shadow 库未配置，MySQL 版本、存量数据和约束行为未验收 |
+| 模型/迁移 | User、Role、UserRole、Permission、RolePermission、UserSession、RefreshToken。五份迁移：`20261022071222_init_users`、`20261022152735_create_role_userrole`、`20261031082805_add_role_permission`、`20261110151500_add_refresh_token`、`20261110164600_add_user_token_version`。2026-11-10 应用第五份后，库到 Schema 的 diff 为空 | 前两份历史 SQL 未改写。第三份已应用，其中 `name` 被删除而不是改名为 `nickname`。第四份只新建 Refresh 表并回填摘要。第五份只增加默认 0 的 `token_version`。shadow 库未配置，MySQL 版本、存量数据和约束行为未验收 |
 | 生命周期 | 有连接、断开及日志代码 | 连通、失败路径、资源释放和事务仍待隔离环境验收 |
 
 2026-10-23 盘点仅更新文档，未执行配置变更、generate、迁移或数据库检查。2026-10-26 为授权的角色创建开发补充本地 generate，未加载个人环境文件、连接数据库或执行迁移；命令及证据见 [CHG-20261026-002](../changelog/2026-10-26-002-role-create.md)。本地生成通过不代表迁移已应用或角色表可用。
@@ -159,11 +159,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
 ### 当前模型与迁移事实
 
-当前 Schema 以 `project/prisma/schema.prisma` 为准。`users`：可空且唯一的 `username`，可空 `password`（只存哈希）、可空 `nickname`、可空 `avatar`，必填且唯一的 `email`，可空且唯一的 `phone`，可空 `sex`，`status` 默认 1。`last_login_at`、`deleted_at`、`created_at`、`updated_at` 使用下划线列名。没有 `age`，也没有 `passwordHash`、`tokenVersion`、`permissionVersion`；status 仍是数字。Role、UserRole 保留，时间列同样改为下划线；UserRole 对 userId/roleId 联合唯一，外键级联删除，没有 `updated_at`。Permission、RolePermission、UserSession（表 `sys_user_session`）已在 Schema 中。PermissionType 当前是 `DIRECTORY`、`MENU`、`BUTTON`、`API`。授权模块和认证模块都还没有。
+当前 Schema 以 `project/prisma/schema.prisma` 为准。`users`：可空且唯一的 `username`，可空 `password`（只存哈希）、可空 `nickname`、可空 `avatar`，必填且唯一的 `email`，可空且唯一的 `phone`，可空 `sex`，`status` 默认 1。`last_login_at`、`deleted_at`、`created_at`、`updated_at` 使用下划线列名。没有 `age`，也没有 `passwordHash`、`permissionVersion`。`tokenVersion` 已追加为默认 0 的整数，映射 `token_version`。status 仍是数字。Role、UserRole 保留，时间列同样改为下划线；UserRole 对 userId/roleId 联合唯一，外键级联删除，没有 `updated_at`。Permission、RolePermission、UserSession（表 `sys_user_session`）和 RefreshToken（表 `sys_refresh_token`）已在 Schema 中。PermissionType 当前是 `DIRECTORY`、`MENU`、`BUTTON`、`API`。授权行为仍未实现。
 
 用户资料接口已按 email、username、nickname、phone、sex、avatar 读写，不写 password。删除仍是硬删除，有 `deleted_at` 列不等于软删已实现。
 
-迁移文件共三份，utf8mb4_unicode_ci。`20261022071222_init_users` 和 `20261022152735_create_role_userrole` 未改写，其中用户列仍是 `name`。增量变化在已应用的 `20261031082805_add_role_permission`：新建 `permissions`、`role_permissions`、`sys_user_session`；`password`、`username`、`nickname`、`avatar` 等新列可空，没有用假密码填充。这份 SQL 对 `users.name` 是 `DROP COLUMN` 再 `ADD nickname`，不是 `RENAME`；同时删除 `age` 以及原来的驼峰时间列再新建下划线时间列。因此应用当时，`name`、`age` 和旧时间列里的值没有被拷贝到新列。该文件已经记入本地迁移历史，不能回改。2026-11-02 只读核对：`prisma migrate status` 显示 3 份迁移且数据库已是最新；库相对 Schema 的 `migrate diff` 为空。按迁移目录做 diff 因未配置 `shadowDatabaseUrl` 未能执行。同日 `migrate dev --create-only` 只写出空迁移，已删除，没有 `migrate deploy`，也没有 reset。证据见 [CHG-20261102-001](../changelog/2026-11-02-001-migration-alignment.md)。
+迁移文件现为五份，utf8mb4_unicode_ci。`20261022071222_init_users` 和 `20261022152735_create_role_userrole` 未改写，其中用户列仍是 `name`。增量变化在已应用的 `20261031082805_add_role_permission`：新建 `permissions`、`role_permissions`、`sys_user_session`；`password`、`username`、`nickname`、`avatar` 等新列可空，没有用假密码填充。这份 SQL 对 `users.name` 是 `DROP COLUMN` 再 `ADD nickname`，不是 `RENAME`；同时删除 `age` 以及原来的驼峰时间列再新建下划线时间列。因此应用当时，`name`、`age` 和旧时间列里的值没有被拷贝到新列。该文件已经记入本地迁移历史，不能回改。2026-11-02 只读核对：`prisma migrate status` 显示 3 份迁移且数据库已是最新；库相对 Schema 的 `migrate diff` 为空。按迁移目录做 diff 因未配置 `shadowDatabaseUrl` 未能执行。同日 `migrate dev --create-only` 只写出空迁移，已删除，没有 `migrate deploy`，也没有 reset。证据见 [CHG-20261102-001](../changelog/2026-11-02-001-migration-alignment.md)。2026-11-10 新增并应用 `20261110151500_add_refresh_token`：只新建 `sys_refresh_token`，外键指向 `sys_user_session` 且级联删除，并把已有 64 位十六进制摘要回填为未使用记录。同日应用 `20261110164600_add_user_token_version`：只给 `users` 增加 `token_version INTEGER NOT NULL DEFAULT 0`。两次应用后库相对 Schema 的 diff 均为空。没有 reset，也没有改写已应用迁移。证据见 [CHG-20261110-004](../changelog/2026-11-10-004-refresh-rotation.md) 与 [CHG-20261110-005](../changelog/2026-11-10-005-session-revoke.md)。
 
 ### 目标模型与增量调整要求
 

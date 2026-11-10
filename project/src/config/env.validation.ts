@@ -28,6 +28,7 @@ export interface Environment extends Record<string, unknown> {
   JWT_AUDIENCE: string;
   JWT_ACCESS_TTL_SECONDS: number;
   REFRESH_TTL_SECONDS: number;
+  SESSION_MAX_TTL_SECONDS: number;
 }
 
 const MIN_JWT_SECRET_LENGTH = 32;
@@ -35,6 +36,8 @@ const JWT_ACCESS_TTL_DEFAULT = 900;
 const JWT_ACCESS_TTL_MAX = 86400;
 const REFRESH_TTL_DEFAULT = 604800;
 const REFRESH_TTL_MAX = 2592000;
+const SESSION_MAX_TTL_DEFAULT = 2592000;
+const SESSION_MAX_TTL_MAX = 2592000;
 
 const REMOVED_DATABASE_KEYS = [
   'DATABASE_HOST',
@@ -173,6 +176,17 @@ export function validateEnv(env: Record<string, unknown>): Environment {
   if (accessTtl >= refreshTtl) {
     throw new Error('JWT_ACCESS_TTL_SECONDS 必须小于 REFRESH_TTL_SECONDS');
   }
+  const sessionMaxTtl = boundedInt(
+    'SESSION_MAX_TTL_SECONDS',
+    env.SESSION_MAX_TTL_SECONDS,
+    SESSION_MAX_TTL_DEFAULT,
+    SESSION_MAX_TTL_MAX,
+  );
+  if (sessionMaxTtl < refreshTtl) {
+    throw new Error(
+      'SESSION_MAX_TTL_SECONDS 必须大于或等于 REFRESH_TTL_SECONDS',
+    );
+  }
 
   return {
     NODE_ENV: nodeEnv,
@@ -197,5 +211,6 @@ export function validateEnv(env: Record<string, unknown>): Environment {
     JWT_AUDIENCE: jwtAudience,
     JWT_ACCESS_TTL_SECONDS: accessTtl,
     REFRESH_TTL_SECONDS: refreshTtl,
+    SESSION_MAX_TTL_SECONDS: sessionMaxTtl,
   };
 }

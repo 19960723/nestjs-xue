@@ -46,6 +46,9 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-11-10-005-session-revoke.md](changelog/2026-11-10-005-session-revoke.md)
+- [doc/changelog/2026-11-10-004-refresh-rotation.md](changelog/2026-11-10-004-refresh-rotation.md)
+- [doc/changelog/2026-11-10-003-access-guard-http.md](changelog/2026-11-10-003-access-guard-http.md)
 - [doc/changelog/2026-11-10-002-access-guard.md](changelog/2026-11-10-002-access-guard.md)
 - [doc/changelog/2026-11-10-001-module-comments.md](changelog/2026-11-10-001-module-comments.md)
 - [doc/changelog/2026-11-09-001-username-login.md](changelog/2026-11-09-001-username-login.md)

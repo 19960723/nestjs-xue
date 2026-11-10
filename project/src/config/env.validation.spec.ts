@@ -31,6 +31,7 @@ describe('validateEnv', () => {
       JWT_AUDIENCE: 'init-xue-api',
       JWT_ACCESS_TTL_SECONDS: 900,
       REFRESH_TTL_SECONDS: 604800,
+      SESSION_MAX_TTL_SECONDS: 2592000,
     });
   });
 
@@ -172,6 +173,17 @@ describe('validateEnv', () => {
         }),
       ),
     ).toThrow('JWT_ACCESS_TTL_SECONDS 必须小于 REFRESH_TTL_SECONDS');
+  });
+
+  it('rejects a session cap shorter than the refresh TTL', () => {
+    expect(() =>
+      validateEnv(
+        envWithDb({
+          REFRESH_TTL_SECONDS: '604800',
+          SESSION_MAX_TTL_SECONDS: '604799',
+        }),
+      ),
+    ).toThrow('SESSION_MAX_TTL_SECONDS 必须大于或等于 REFRESH_TTL_SECONDS');
   });
 
   it('does not keep unknown env keys on the validated object', () => {

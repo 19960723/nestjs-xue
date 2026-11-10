@@ -34,6 +34,17 @@ function readBearerToken(header: string | string[] | undefined): string | null {
   return parts[1];
 }
 
+/** tokenVersion 来自服务端签发的整数，不接受字符串或小数。 */
+function nonNegativeInt(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    return null;
+  }
+  if (value < 0 || value > INT_MAX) {
+    return null;
+  }
+  return value;
+}
+
 /** 只接受不含前导零的十进制正整数字符串，并限制在 MySQL INT 范围内。 */
 function positiveIntString(value: unknown): number | null {
   if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value)) {
@@ -47,8 +58,8 @@ function positiveIntString(value: unknown): number | null {
 }
 
 /**
- * 校验 Access，通过后只把 { id, sessionId } 挂到请求上。
- * 缺 token、签名或签发方不符、sub/sid 非法、会话撤销或过期、用户禁用或已删，
+ * 校验 Access，通过后只把 { id, sessionId, tokenVersion } 挂到请求上。
+ * 缺 token、签名或签发方不符、sub/sid/ver 非法、版本不一致、会话撤销或过期、用户禁用或已删，
  * 都返回同一条 401。数据库故障返回 503，不放行。日志不记录 token。
  * AuthModule 已把它注册为全局 Guard。只有标了 @Public() 的路由跳过校验。
  */
@@ -82,23 +93,28 @@ export class JwtAuthGuard implements CanActivate {
     const payload = await this.verifyPayload(token);
     const userId = positiveIntString(payload.sub);
     const sessionId = positiveIntString(payload.sid);
-    if (userId === null || sessionId === null) {
+    const tokenVersion = nonNegativeInt(payload.ver);
+    if (userId === null || sessionId === null || tokenVersion === null) {
       throw new UnauthorizedException(INVALID_IDENTITY);
     }
 
-    const session = await this.findActiveSession(sessionId, userId);
+    const session = await this.findActiveSession(
+      sessionId,
+      userId,
+      tokenVersion,
+    );
     if (!session) {
       throw new UnauthorizedException(INVALID_IDENTITY);
     }
 
-    request.user = { id: userId, sessionId };
+    request.user = { id: userId, sessionId, tokenVersion };
     return true;
   }
 
   /** 固定 HS256 和已配置的 issuer、audience。验签失败不区分过期、算法或密钥错误。 */
   private async verifyPayload(
     token: string,
-  ): Promise<{ sub: unknown; sid: unknown }> {
+  ): Promise<{ sub: unknown; sid: unknown; ver: unknown }> {
     try {
       const payload: unknown = await this.jwt.verifyAsync(token, {
         algorithms: ['HS256'],
@@ -110,7 +126,7 @@ export class JwtAuthGuard implements CanActivate {
         throw new UnauthorizedException(INVALID_IDENTITY);
       }
       const record = payload as Record<string, unknown>;
-      return { sub: record.sub, sid: record.sid };
+      return { sub: record.sub, sid: record.sid, ver: record.ver };
     } catch (error: unknown) {
       if (error instanceof UnauthorizedException) {
         throw error;
@@ -119,10 +135,11 @@ export class JwtAuthGuard implements CanActivate {
     }
   }
 
-  /** 会话必须属于该用户、未撤销且未过期，用户仍启用未删除。查询异常不当成 401。 */
+  /** 会话必须属于该用户、未撤销且未过期，用户仍启用未删除，且版本与 Access 一致。查询异常不当成 401。 */
   private async findActiveSession(
     sessionId: number,
     userId: number,
+    tokenVersion: number,
   ): Promise<{ id: number } | null> {
     try {
       return await this.prisma.userSession.findFirst({
@@ -131,7 +148,7 @@ export class JwtAuthGuard implements CanActivate {
           userId,
           revokedAt: null,
           expiresAt: { gt: new Date() },
-          user: { deletedAt: null, status: 1 },
+          user: { deletedAt: null, status: 1, tokenVersion },
         },
         select: { id: true },
       });
