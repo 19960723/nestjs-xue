@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, MaxLength, MinLength } from 'class-validator';
 
+/** 首次设置的密码。保留首尾空格，不在 DTO 层截断或改写。 */
 export class SetInitialPasswordDto {
   @ApiProperty({
     description: '首次设置的密码。保留首尾空格，长度 15～128',

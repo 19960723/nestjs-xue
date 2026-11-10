@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { User } from '../entities/user.entity.js';
 
+/** 用户列表的分页包装。字段与 UsersService.findAll 的返回一致。 */
 export class UserPageDto {
   @ApiProperty({ description: '当前页用户列表', type: [User] })
   list!: User[];

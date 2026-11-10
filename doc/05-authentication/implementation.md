@@ -1,6 +1,6 @@
 # 阶段 05：身份认证系统
 
-更新：2026-11-09。文档状态：已更新；功能状态：进行中（`sys_user_session` 已在已应用迁移中；已有 Argon2id 哈希、首次设密、用户名登录和 Access Guard。`GET /auth/me`、用户和角色接口需要有效 Access；健康检查和登录公开。刷新轮换、退出和重置未实现，HTTP 未验收）。前置：[04](../04-user-management/implementation.md)及01的Jest工具。安全策略见 [ADR0004](../decisions/0004-security-and-data-policy.md)。默认命令在project/。
+更新：2026-11-10。文档状态：已更新；功能状态：进行中（`sys_user_session` 已在已应用迁移中；已有 Argon2id 哈希、首次设密和用户名登录。`JwtAuthGuard` 源文件已写，但 `AuthModule` 未注册 `APP_GUARD`，也没有 `GET /auth/me`，现有路由尚未被拦截。刷新轮换、退出和重置未实现，HTTP 未验收）。前置：[04](../04-user-management/implementation.md)及01的Jest工具。安全策略见 [ADR0004](../decisions/0004-security-and-data-policy.md)。默认命令在project/。
 
 ## 1. 阶段目标
 
@@ -57,6 +57,8 @@ pnpm exec nest g controller modules/auth --no-spec
 - 本批不实现注册、退出、改密、密码重置和失败计数。`SESSION_MAX_TTL_SECONDS`、`AUTH_REGISTER_ENABLED`、`AUTH_RESET_ENABLED`、`AUTH_LIMIT_HMAC_SECRET` 仍不加入配置。
 
 ### 当前 Guard 切片（2026-11-09）
+
+2026-11-10 对照源码：`JwtAuthGuard`、`@Public()` 和 `CurrentUser` 只有实现文件。`AuthModule` 没有注册 `APP_GUARD`，控制器没有 `GET /auth/me`，健康检查和登录也没有 `@Public()`。下面仍是待接线的设计，不是已经生效的访问控制。本次只补了注释，没有注册 Guard。
 
 本批注册全局 `JwtAuthGuard`，并增加 `GET /api/v1/auth/me`。继续使用现有 `UserSession`，不新建迁移，不提供 `POST /auth/refresh`，也不校验 `ver`。`User` 仍然没有 `tokenVersion`。
 
@@ -187,16 +189,15 @@ model AuthAttemptBucket {
 
 ### 当前代码契约（2026-11-09）
 
-前缀 `/api/v1`，成功响应仍走阶段 03 包装。已实现登录、Access Guard 和当前用户。登录成功的 `data` 为 `{accessToken,refreshToken,tokenType:"Bearer",expiresIn}`，`expiresIn` 取已校验的 `JWT_ACCESS_TTL_SECONDS`，并设置 `Cache-Control: no-store`。没有刷新、退出、改密和重置接口。
+前缀 `/api/v1`，成功响应仍走阶段 03 包装。已实现登录。`JwtAuthGuard` 与 `GET /auth/me` 尚未接线。登录成功的 `data` 为 `{accessToken,refreshToken,tokenType:"Bearer",expiresIn}`，`expiresIn` 取已校验的 `JWT_ACCESS_TTL_SECONDS`，并设置 `Cache-Control: no-store`。没有刷新、退出、改密和重置接口。
 
-`GET /health/live` 与 `POST /auth/login` 公开。其余现有 HTTP 路由，包括用户、角色和 `GET /auth/me`，都要求有效 Access。Swagger 仍只受 `SWAGGER_ENABLE` 开关控制。
+现有 HTTP 路由，包括用户、角色和健康检查，都还没有被 Access Guard 拦截。Swagger 仍只受 `SWAGGER_ENABLE` 开关控制。
 
 | Method | 路径 | 当前请求与响应 | 已实现业务异常 |
 | --- | --- | --- | --- |
 | POST | /auth/login | username 必填且 trim 后 1～50，password 必填、15～128、不 trim → 200 TokenSet | 400 校验失败；401 用户名或密码错误 |
-| GET | /auth/me | Bearer Access → 200 公开 User | 401 身份无效；503 数据库不可用 |
 
-登录 401 不区分用户不存在、未设密、已禁用、已软删和密码错误。Guard 的 401 也不区分缺 token、签名错误、过期、会话撤销、会话过期、用户禁用或已软删。数据库查询异常返回 503，不放行。签名失败撤销未交付会话并返回 500，响应不含 token。
+登录 401 不区分用户不存在、未设密、已禁用、已软删和密码错误。`GET /auth/me` 尚未实现。Guard 接线后，缺 token、签名错误、过期、会话撤销、会话过期、用户禁用或已软删才应返回同一条 401「身份无效」；数据库查询异常返回 503。签名失败撤销未交付会话并返回 500，响应不含 token。
 
 ### 阶段目标契约（后续实施）
 

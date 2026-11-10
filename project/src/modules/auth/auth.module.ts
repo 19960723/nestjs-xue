@@ -5,6 +5,11 @@ import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { PasswordService } from './password.service.js';
 
+/**
+ * 认证模块。JwtModule 只提供 HS256 和已校验的 issuer、audience、有效期。
+ * 导出 PasswordService 给首次设密使用。
+ * JwtAuthGuard 已写好，这里还没有注册为 APP_GUARD，现有路由尚未被它拦截。
+ */
 @Module({
   imports: [
     JwtModule.registerAsync({

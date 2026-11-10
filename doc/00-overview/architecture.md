@@ -1,6 +1,6 @@
 # 模块化单体架构
 
-更新：2026-10-30。文档状态：已更新；目标方案仍见提议中的 [ADR 0001](../decisions/0001-modular-monolith.md)。当前已有 Health、Users、Roles 和 Prisma 模块，模块目录与部分职责尚未按目标收拢；阶段 01 及 Swagger 局部历史验收不代表数据库业务已验证。
+更新：2026-11-10。文档状态：已更新；目标方案仍见提议中的 [ADR 0001](../decisions/0001-modular-monolith.md)。当前已有 Health、Users、Roles、Auth 和 Prisma 模块。认证 Guard 已编写但尚未注册为全局 Guard。阶段 01 及 Swagger 局部历史验收不代表数据库业务已验证。
 
 ## 当前实现与目标差异
 
@@ -62,6 +62,10 @@ flowchart LR
 Repository 只在存在实际查询时创建，每业务模块一个具体类即可，不创建 BaseRepository、DDD 层套层或工作单元框架。数据库资源模块显式导入，配置模块可全局加载。
 
 依赖方向：`AppModule → Users/Auth/Authorization/Health`；`Auth → Users + Database`；`Authorization → Users + Database`；`Users → Database`。认证只读取用户和会话，不依赖权限模块；权限模块不反向导入 Auth。路由元数据/用户上下文类型放 common，避免循环依赖。用户禁用、删除、改密码在数据库事务里更新用户版本并撤销会话，无需 Users 调用 Auth。
+
+## 代码注释
+
+业务模块、Guard、过滤器和数据库接入用中文注释说明职责与不变量，不复述语句本身。要写清失败为什么返回同一条文案、为什么在事务外做哈希、为什么数据库故障不能当成认证失败。公开类和会改变安全或一致性的方法使用块注释。DTO 字段规则以校验装饰器和 ApiProperty 为准，类注释只补充装饰器表达不了的约束。注释不写密钥、密码或 token。新增或修改模块时同步补齐；只有注释、行为未变时，不把对应功能标成已验证。
 
 ## 目标目录（不是当前已存在的目录）
 

@@ -16,6 +16,7 @@ const LOGIN_FAILED = '用户名或密码错误';
 const DUMMY_PASSWORD_HASH =
   '$argon2id$v=19$m=19456,p=1,t=2$gFuzNlAWP63U0zANLf9Yng$1eAnFVlUv2tISM38c5SVQUqjPHaTYxAsn92vVXUIfj4';
 
+/** 登录成功交给客户端的令牌。Refresh 原文只出现这一次，库中只存摘要。 */
 export interface TokenSet {
   accessToken: string;
   refreshToken: string;
@@ -23,12 +24,20 @@ export interface TokenSet {
   expiresIn: number;
 }
 
+/** Access 的业务声明。只放用户、会话和一次性 jti，不放密码、邮箱或权限。 */
 interface AccessPayload {
   sub: string;
   sid: string;
   jti: string;
 }
 
+/**
+ * 用户名密码登录。
+ * 不存在、未设密、已禁用、已软删和密码错误都返回同一条 401，避免枚举账号。
+ * 哈希在事务外完成；通过后用短事务重读用户再写会话，避免校验期间被禁用或改密。
+ * 事务提交后才签 Access。签名失败会撤销尚未交付的会话，响应里不带 token。
+ * 本类不实现刷新轮换、退出和改密。
+ */
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -40,6 +49,10 @@ export class AuthService {
     private readonly config: ConfigService,
   ) {}
 
+  /**
+   * 校验凭据并创建一条会话。
+   * Refresh 是 32 字节随机值，入库的是它的 SHA-256 十六进制摘要。
+   */
   async login(username: string, password: string): Promise<TokenSet> {
     const user = await this.prisma.user.findUnique({
       where: { username },
@@ -57,6 +70,7 @@ export class AuthService {
       user.status === 1 &&
       passwordMatches;
 
+    // 失败文案保持一致，调用方不能从异常区分是没有这个人还是密码错了。
     if (!canLogin || !user || passwordHash === null) {
       throw new UnauthorizedException(LOGIN_FAILED);
     }
@@ -67,6 +81,7 @@ export class AuthService {
       .digest('hex');
     const refreshTtl = this.config.getOrThrow<number>('REFRESH_TTL_SECONDS');
     const expiresAt = new Date(Date.now() + refreshTtl * 1000);
+    // 重读确认用户仍可登录，且密码哈希没有在校验期间被换掉。
     const session = await this.prisma.$transaction(async (tx) => {
       const current = await tx.user.findFirst({
         where: {
@@ -110,6 +125,7 @@ export class AuthService {
         audience: this.config.getOrThrow<string>('JWT_AUDIENCE'),
       });
     } catch {
+      // 会话已经提交，但不能把签不出来的 Access 和配套 Refresh 留给客户端。
       await this.revokeUndeliveredSession(session.id);
       this.logger.error('Access token 签发失败');
       throw new InternalServerErrorException('服务暂不可用');
@@ -123,6 +139,7 @@ export class AuthService {
     };
   }
 
+  /** 签名失败后的补偿。只标记撤销，不删除记录，也不把 token 写入日志。 */
   private async revokeUndeliveredSession(sessionId: number): Promise<void> {
     await this.prisma.userSession.update({
       where: { id: sessionId },

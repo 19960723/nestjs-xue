@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
+/** 用户分页查询。页码从 1 开始，关键字只作为资料搜索，不参与认证。 */
 export class QueryUserDto {
   @ApiPropertyOptional({
     description: '页码',

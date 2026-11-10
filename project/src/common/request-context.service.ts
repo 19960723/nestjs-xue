@@ -5,6 +5,7 @@ interface RequestStore {
   requestId: string;
 }
 
+/** 用 AsyncLocalStorage 保存当前请求的 requestId，避免把标识挂到全局变量上。 */
 @Injectable()
 export class RequestContextService {
   private readonly storage = new AsyncLocalStorage<RequestStore>();

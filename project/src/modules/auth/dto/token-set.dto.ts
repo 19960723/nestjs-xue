@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+/** 登录成功数据。refreshToken 只在这次响应里出现，服务端不保存原文。 */
 export class TokenSetDto {
   @ApiProperty({ description: '短期 Access JWT' })
   accessToken!: string;

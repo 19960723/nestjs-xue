@@ -27,6 +27,10 @@ import { UpdateRoleDto } from './dto/update-role.dto.js';
 import { RolePageDto } from './dto/role-response.dto.js';
 import { Role } from './entities/role.entity.js';
 
+/**
+ * 角色 HTTP 入口。只做路由和文档，唯一性与删除约束在 RolesService。
+ * 这些路由目前没有认证或权限 Guard。
+ */
 @ApiTags('角色管理')
 @Controller('roles')
 export class RolesController {

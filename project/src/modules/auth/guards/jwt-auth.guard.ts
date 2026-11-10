@@ -14,6 +14,7 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
 import type { AuthenticatedUser } from '../types/authenticated-user.js';
 
 const INVALID_IDENTITY = '身份无效';
+/** 会话主键是有符号 INT，超过这个值不能当作合法 sid。 */
 const INT_MAX = 2147483647;
 
 interface AuthenticatedRequest {
@@ -21,6 +22,7 @@ interface AuthenticatedRequest {
   user?: AuthenticatedUser;
 }
 
+/** 只接受唯一的 "Bearer <token>"。数组头、缺段或多段都视为没有令牌。 */
 function readBearerToken(header: string | string[] | undefined): string | null {
   if (typeof header !== 'string') {
     return null;
@@ -32,6 +34,7 @@ function readBearerToken(header: string | string[] | undefined): string | null {
   return parts[1];
 }
 
+/** 只接受不含前导零的十进制正整数字符串，并限制在 MySQL INT 范围内。 */
 function positiveIntString(value: unknown): number | null {
   if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value)) {
     return null;
@@ -43,6 +46,12 @@ function positiveIntString(value: unknown): number | null {
   return parsed;
 }
 
+/**
+ * 校验 Access，通过后只把 { id, sessionId } 挂到请求上。
+ * 缺 token、签名或签发方不符、sub/sid 非法、会话撤销或过期、用户禁用或已删，
+ * 都返回同一条 401。数据库故障返回 503，不放行。日志不记录 token。
+ * AuthModule 还没有把它注册为全局 Guard，所以这段逻辑目前不会自动拦截路由。
+ */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
@@ -86,6 +95,7 @@ export class JwtAuthGuard implements CanActivate {
     return true;
   }
 
+  /** 固定 HS256 和已配置的 issuer、audience。验签失败不区分过期、算法或密钥错误。 */
   private async verifyPayload(
     token: string,
   ): Promise<{ sub: unknown; sid: unknown }> {
@@ -109,6 +119,7 @@ export class JwtAuthGuard implements CanActivate {
     }
   }
 
+  /** 会话必须属于该用户、未撤销且未过期，用户仍启用未删除。查询异常不当成 401。 */
   private async findActiveSession(
     sessionId: number,
     userId: number,

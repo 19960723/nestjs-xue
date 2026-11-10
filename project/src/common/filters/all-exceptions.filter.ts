@@ -15,6 +15,11 @@ import type {
 } from '../types/api-response.js';
 import { ErrorCode } from '../types/error-code.js';
 
+/**
+ * 统一错误出口。HttpException 保留业务文案；未处理异常和数据库初始化失败
+ * 只返回固定文案，日志记异常名和栈，不回显 SQL 或连接串。
+ * 5xx 才打错误日志，4xx 视为调用方问题。
+ */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);

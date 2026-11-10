@@ -11,6 +11,9 @@ import {
   MinLength,
 } from 'class-validator';
 
+/**
+ * 创建用户的资料字段。不接收密码、状态和角色；邮箱与用户名会去掉首尾空格。
+ */
 export class CreateUserDto {
   @ApiProperty({
     description: '邮箱',

@@ -12,6 +12,12 @@ import { UpdateUserDto } from './dto/update-user.dto.js';
 import { QueryUserDto } from './dto/query-user.dto.js';
 import { userPublicSelect } from './user.select.js';
 
+/**
+ * 用户资料。创建和更新不接收密码、状态或角色。
+ * 查询一律用公开字段，响应里没有密码和删除时间。
+ * 首次设密只在密码仍为空、未删除且启用时写入；哈希在更新前计算。
+ * 删除仍是硬删除，已分配角色时整段事务失败。
+ */
 @Injectable()
 export class UsersService {
   constructor(
@@ -19,6 +25,7 @@ export class UsersService {
     private readonly passwords: PasswordService,
   ) {}
 
+  /** 把唯一索引冲突换成字段文案。认不出字段时仍返回 409，不把 Prisma 内部信息交给客户端。 */
   private handleWriteError(error: unknown): never {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -48,6 +55,7 @@ export class UsersService {
     throw error;
   }
 
+  /** 只挑资料字段。显式传入的邮箱 null 在这里拒绝，不能把必填邮箱清空。 */
   private profileData(dto: UpdateUserDto) {
     if (dto.email === null) {
       throw new BadRequestException('邮箱不能为空');
@@ -63,6 +71,7 @@ export class UsersService {
     };
   }
 
+  /** 创建资料，不写密码。新用户在首次设密前不能登录。 */
   async create(dto: CreateUserDto) {
     try {
       return await this.prisma.user.create({
@@ -81,6 +90,7 @@ export class UsersService {
     }
   }
 
+  /** 分页列表。列表和总数放在同一事务里，关键字只匹配用户名、昵称和邮箱。 */
   async findAll(query: QueryUserDto) {
     const { page, pageSize, keyword } = query;
     const where: Prisma.UserWhereInput = keyword
@@ -112,6 +122,7 @@ export class UsersService {
     };
   }
 
+  /** 按主键返回公开资料。当前不按 deletedAt 过滤，响应里也不含删除时间。 */
   async findOne(id: number) {
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -125,6 +136,10 @@ export class UsersService {
     return user;
   }
 
+  /**
+   * 条件更新写入第一份密码。条件里同时要求密码为空、未删除且启用，避免先查再改的空窗。
+   * 没写上时再读状态，区分不存在、已禁用和已设密；读和重试之间仍可能被别人设密。
+   */
   async setInitialPassword(id: number, password: string) {
     const passwordHash = await this.passwords.hash(password);
     const updated = await this.prisma.user.updateMany({
@@ -179,6 +194,7 @@ export class UsersService {
     throw new ConflictException('密码已设置');
   }
 
+  /** 只改资料。不在这里改密码、状态或角色。 */
   async update(id: number, dto: UpdateUserDto) {
     await this.findOne(id);
 
@@ -193,6 +209,7 @@ export class UsersService {
     }
   }
 
+  /** 未分配角色时物理删除。检查和删除放在同一事务，已分配则 409 并回滚。 */
   async remove(id: number) {
     await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({

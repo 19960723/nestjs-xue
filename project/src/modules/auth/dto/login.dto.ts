@@ -2,6 +2,9 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
 
+/**
+ * 登录入参。用户名去掉首尾空格；密码保留空格且不截断，避免改掉用户实际输入。
+ */
 export class LoginDto {
   @ApiProperty({
     description: '用户名。去掉首尾空格，长度 1～50',

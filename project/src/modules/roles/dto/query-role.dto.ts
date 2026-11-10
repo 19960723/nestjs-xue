@@ -17,6 +17,7 @@ function toQueryInteger({ value }: { value: unknown }): unknown {
     : value;
 }
 
+/** 角色分页查询。状态只接受约定枚举，避免把空串或布尔值转成数字后误筛选。 */
 export class QueryRoleDto {
   @ApiPropertyOptional({
     description: '页码',

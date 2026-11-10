@@ -6,6 +6,10 @@ interface RequestWithUser {
   user?: AuthenticatedUser;
 }
 
+/**
+ * 读取 Guard 写入的当前用户。没有身份时返回 401，不把未认证请求当成匿名继续执行。
+ * Guard 尚未全局注册时，这里还取不到用户。
+ */
 export const CurrentUser = createParamDecorator(
   (_data: unknown, context: ExecutionContext): AuthenticatedUser => {
     const request = context.switchToHttp().getRequest<RequestWithUser>();

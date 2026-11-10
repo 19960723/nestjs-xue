@@ -9,6 +9,10 @@ import { ResponseInterceptor } from './interceptors/response.interceptor.js';
 import { RequestContextMiddleware } from './middleware/request-context.middleware.js';
 import { RequestContextService } from './request-context.service.js';
 
+/**
+ * 公共请求管线。注册 requestId、全局异常过滤器和成功响应包装。
+ * 中间件覆盖全部路由，业务模块不再各自包装响应。
+ */
 @Module({
   providers: [
     RequestContextService,

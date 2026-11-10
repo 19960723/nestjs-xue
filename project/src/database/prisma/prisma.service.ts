@@ -8,6 +8,10 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '../../generated/prisma/client.js';
 import { createDatabaseAdapter } from './database-options.js';
 
+/**
+ * 进程内唯一的 Prisma 客户端。模块初始化时连接，关闭钩子里断开。
+ * 业务规则不写在这里。
+ */
 @Injectable()
 export class PrismaService
   extends PrismaClient

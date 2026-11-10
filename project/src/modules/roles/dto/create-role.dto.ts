@@ -14,6 +14,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 
+/** 创建角色。名称可以重复，编码由数据库唯一索引约束。 */
 export class CreateRoleDto {
   @ApiProperty({
     description: '角色名称',

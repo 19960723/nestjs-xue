@@ -13,6 +13,10 @@ import { isApiSuccessEnvelope } from '../types/api-response.js';
 import type { ApiSuccessResponse } from '../types/api-response.js';
 import { ErrorCode } from '../types/error-code.js';
 
+/**
+ * 把未标注跳过的成功结果包成 { code, message, data, requestId }。
+ * 已经是统一信封的返回值不再包一层。异常不经过这里。
+ */
 @Injectable()
 export class ResponseInterceptor implements NestInterceptor {
   constructor(

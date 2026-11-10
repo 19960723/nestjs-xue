@@ -18,6 +18,10 @@ import { AuthService } from './auth.service.js';
 import { LoginDto } from './dto/login.dto.js';
 import { TokenSetDto } from './dto/token-set.dto.js';
 
+/**
+ * 登录入口。只负责路由、状态码和缓存头，凭据与会话规则在 AuthService。
+ * no-store 避免令牌被中间层缓存。当前没有刷新接口。
+ */
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -35,6 +39,7 @@ export class AuthController {
   @ApiOkResponse({ description: '登录成功', type: TokenSetDto })
   @ApiBadRequestResponse({ description: '请求字段不符合校验规则' })
   @ApiUnauthorizedResponse({ description: '用户名或密码错误' })
+  /** 校验交给全局 Pipe，成功体由统一包装输出。 */
   login(@Body() dto: LoginDto): Promise<TokenSetDto> {
     return this.authService.login(dto.username, dto.password);
   }

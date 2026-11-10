@@ -30,6 +30,10 @@ import { UpdateUserDto } from './dto/update-user.dto.js';
 import { QueryUserDto } from './dto/query-user.dto.js';
 import { SetInitialPasswordDto } from './dto/set-initial-password.dto.js';
 
+/**
+ * 用户 HTTP 入口。只做路由和文档，业务规则在 UsersService。
+ * 这些路由目前没有认证 Guard，只适合隔离的本地管理。
+ */
 @ApiTags('users')
 @Controller('users')
 export class UsersController {
