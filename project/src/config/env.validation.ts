@@ -23,7 +23,18 @@ export interface Environment extends Record<string, unknown> {
   SWAGGER_ENABLE: boolean;
   SWAGGER_PATH: string;
   DATABASE_URL: string;
+  JWT_SECRET: string;
+  JWT_ISSUER: string;
+  JWT_AUDIENCE: string;
+  JWT_ACCESS_TTL_SECONDS: number;
+  REFRESH_TTL_SECONDS: number;
 }
+
+const MIN_JWT_SECRET_LENGTH = 32;
+const JWT_ACCESS_TTL_DEFAULT = 900;
+const JWT_ACCESS_TTL_MAX = 86400;
+const REFRESH_TTL_DEFAULT = 604800;
+const REFRESH_TTL_MAX = 2592000;
 
 const REMOVED_DATABASE_KEYS = [
   'DATABASE_HOST',
@@ -32,6 +43,44 @@ const REMOVED_DATABASE_KEYS = [
   'DATABASE_PASSWORD',
   'DATABASE_NAME',
 ] as const;
+
+function requiredText(name: string, value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`${name} 必须是非空字符串`);
+  }
+  return value.trim();
+}
+
+function requireJwtSecret(value: unknown): string {
+  if (
+    typeof value !== 'string' ||
+    value.trim().length < MIN_JWT_SECRET_LENGTH
+  ) {
+    throw new Error(
+      `JWT_SECRET 必须是至少 ${MIN_JWT_SECRET_LENGTH} 个字符的非空字符串`,
+    );
+  }
+  return value;
+}
+
+function boundedInt(
+  name: string,
+  value: unknown,
+  fallback: number,
+  max: number,
+): number {
+  const text = value === undefined ? String(fallback) : String(value);
+  const parsed = Number(text);
+  if (
+    !/^\d+$/.test(text) ||
+    !Number.isInteger(parsed) ||
+    parsed < 1 ||
+    parsed > max
+  ) {
+    throw new Error(`${name} 必须是 1..${max} 的整数`);
+  }
+  return parsed;
+}
 
 function enumValue<T extends string>(
   name: string,
@@ -106,6 +155,25 @@ export function validateEnv(env: Record<string, unknown>): Environment {
     }
   }
 
+  const jwtSecret = requireJwtSecret(env.JWT_SECRET);
+  const jwtIssuer = requiredText('JWT_ISSUER', env.JWT_ISSUER);
+  const jwtAudience = requiredText('JWT_AUDIENCE', env.JWT_AUDIENCE);
+  const accessTtl = boundedInt(
+    'JWT_ACCESS_TTL_SECONDS',
+    env.JWT_ACCESS_TTL_SECONDS,
+    JWT_ACCESS_TTL_DEFAULT,
+    JWT_ACCESS_TTL_MAX,
+  );
+  const refreshTtl = boundedInt(
+    'REFRESH_TTL_SECONDS',
+    env.REFRESH_TTL_SECONDS,
+    REFRESH_TTL_DEFAULT,
+    REFRESH_TTL_MAX,
+  );
+  if (accessTtl >= refreshTtl) {
+    throw new Error('JWT_ACCESS_TTL_SECONDS 必须小于 REFRESH_TTL_SECONDS');
+  }
+
   return {
     NODE_ENV: nodeEnv,
     HOST: host,
@@ -124,5 +192,10 @@ export function validateEnv(env: Record<string, unknown>): Environment {
     SWAGGER_ENABLE: swaggerEnable,
     SWAGGER_PATH: swaggerPath,
     DATABASE_URL: databaseUrl,
+    JWT_SECRET: jwtSecret,
+    JWT_ISSUER: jwtIssuer,
+    JWT_AUDIENCE: jwtAudience,
+    JWT_ACCESS_TTL_SECONDS: accessTtl,
+    REFRESH_TTL_SECONDS: refreshTtl,
   };
 }

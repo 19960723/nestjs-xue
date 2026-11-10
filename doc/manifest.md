@@ -46,6 +46,7 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-11-09-001-username-login.md](changelog/2026-11-09-001-username-login.md)
 - [doc/changelog/2026-11-02-002-initial-password.md](changelog/2026-11-02-002-initial-password.md)
 - [doc/changelog/2026-11-02-001-migration-alignment.md](changelog/2026-11-02-001-migration-alignment.md)
 - [doc/changelog/2026-10-31-008-user-response-last-login.md](changelog/2026-10-31-008-user-response-last-login.md)

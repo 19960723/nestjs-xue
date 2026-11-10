@@ -2,11 +2,18 @@ import { validateEnv } from './env.validation.js';
 
 const VALID_DATABASE_URL =
   'mysql://app_user:replace_me@127.0.0.1:3306/init_xue_dev';
+const VALID_JWT_SECRET = 'test-only-jwt-secret-32chars-minimum';
 
 function envWithDb(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
-  return { DATABASE_URL: VALID_DATABASE_URL, ...overrides };
+  return {
+    DATABASE_URL: VALID_DATABASE_URL,
+    JWT_SECRET: VALID_JWT_SECRET,
+    JWT_ISSUER: 'init-xue',
+    JWT_AUDIENCE: 'init-xue-api',
+    ...overrides,
+  };
 }
 
 // 直接测试配置转换与拒绝规则，不加载 .env 或启动 Nest 应用。
@@ -19,6 +26,11 @@ describe('validateEnv', () => {
       LOG_LEVEL: 'log',
       OBSERVE_ENABLED: false,
       DATABASE_URL: VALID_DATABASE_URL,
+      JWT_SECRET: VALID_JWT_SECRET,
+      JWT_ISSUER: 'init-xue',
+      JWT_AUDIENCE: 'init-xue-api',
+      JWT_ACCESS_TTL_SECONDS: 900,
+      REFRESH_TTL_SECONDS: 604800,
     });
   });
 
@@ -120,6 +132,46 @@ describe('validateEnv', () => {
     expect(() => validateEnv(envWithDb({ [key]: 'leftover' }))).toThrow(
       `${key} 已停用，请只配置 DATABASE_URL`,
     );
+  });
+
+  it('rejects missing JWT_SECRET', () => {
+    const env = envWithDb();
+    delete env.JWT_SECRET;
+    expect(() => validateEnv(env)).toThrow(
+      /^JWT_SECRET 必须是至少 32 个字符的非空字符串$/,
+    );
+  });
+
+  it('does not echo a short JWT_SECRET', () => {
+    expect(() =>
+      validateEnv(envWithDb({ JWT_SECRET: 'secret-marker' })),
+    ).toThrow(/^JWT_SECRET 必须是至少 32 个字符的非空字符串$/);
+  });
+
+  it.each(['JWT_ISSUER', 'JWT_AUDIENCE'])('rejects blank %s', (key) => {
+    expect(() => validateEnv(envWithDb({ [key]: '  ' }))).toThrow(
+      `${key} 必须是非空字符串`,
+    );
+  });
+
+  it.each(['0', '-1', '1.5', '86401', '900junk'])(
+    'rejects invalid JWT_ACCESS_TTL_SECONDS=%s',
+    (value) => {
+      expect(() =>
+        validateEnv(envWithDb({ JWT_ACCESS_TTL_SECONDS: value })),
+      ).toThrow('JWT_ACCESS_TTL_SECONDS');
+    },
+  );
+
+  it('rejects access TTL that is not shorter than refresh TTL', () => {
+    expect(() =>
+      validateEnv(
+        envWithDb({
+          JWT_ACCESS_TTL_SECONDS: '900',
+          REFRESH_TTL_SECONDS: '900',
+        }),
+      ),
+    ).toThrow('JWT_ACCESS_TTL_SECONDS 必须小于 REFRESH_TTL_SECONDS');
   });
 
   it('does not keep unknown env keys on the validated object', () => {

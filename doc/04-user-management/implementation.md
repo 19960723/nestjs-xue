@@ -1,6 +1,6 @@
 # 阶段 04：用户管理 CRUD
 
-更新：2026-11-02。文档状态：已更新；功能状态：进行中（资料字段已接入；`POST /users/:id/password` 只在密码为空时写入哈希；创建和资料更新仍不接收密码；删除仍为硬删除；数据库与 HTTP 未验收）。前置：[02](../02-database/implementation.md)、[03](../03-api-standards/implementation.md)。本阶段接口仅在隔离本地回环地址开发，05/06完成后才能对外开放。
+更新：2026-11-09。文档状态：已更新；功能状态：进行中（资料字段已接入；`POST /users/:id/password` 只在密码为空时写入哈希；创建和资料更新仍不接收密码；删除仍为硬删除；数据库与 HTTP 未验收）。前置：[02](../02-database/implementation.md)、[03](../03-api-standards/implementation.md)。本阶段接口仅在隔离本地回环地址开发，05/06完成后才能对外开放。
 
 ## 1. 阶段目标
 
@@ -39,7 +39,7 @@ Controller处理HTTP，Service负责不变量/事务，UsersRepository负责查�
 2. 2026-10-30 已落实公开 select、显式写入、`ParseIntPipe`、删除前检查 `user_roles`（已分配 409）。2026-10-31 写入字段改为 email/username/nickname/phone/sex/avatar，不写 password。未新增 Repository，删除仍是硬删除。
 3. 新增具体 UsersRepository、UsersModule 显式导入 PrismaModule 后再移除 `@Global()` 仍单独实施；不创建 BaseRepository。
 4. 邮箱最长 100，唯一冲突已按邮箱、用户名、手机号区分。空 PATCH、keyword 长度限制仍待补。
-5. 创建和资料更新都不接收密码。2026-11-02 增加 `POST /users/:id/password`：密码 15～128、不 trim，仅当密码为空、未删除且启用时写入 Argon2id 哈希。已有密码、已禁用返回 409，不存在或已标记删除返回 404。登录、改密和 Guard 仍未实现。软删行为、状态枚举和版本字段另批实施。本地库已有这些资料列，见 [02 第 6 节](../02-database/implementation.md#6-数据库设计)；其他环境未核对。统一包装已在 03 落地，分页字段仍是 `list`。
+5. 创建和资料更新都不接收密码。2026-11-02 增加 `POST /users/:id/password`：密码 15～128、不 trim，仅当密码为空、未删除且启用时写入 Argon2id 哈希。已有密码、已禁用返回 409，不存在或已标记删除返回 404。2026-11-09 起，已设密的启用用户可经阶段 05 的用户名登录创建会话；改密和 Guard 仍未实现。软删行为、状态枚举和版本字段另批实施。本地库已有这些资料列，见 [02 第 6 节](../02-database/implementation.md#6-数据库设计)；其他环境未核对。统一包装已在 03 落地，分页字段仍是 `list`。
 
 下方 5.1～5.5 是完整阶段目标；只有前置模型/契约具备后才实施。数据库约束、事务和软删验收需隔离环境，目录和 Swagger 整理不能替代这些证据。
 
@@ -110,7 +110,7 @@ return { items, total, page, pageSize };
 
 ### 当前代码契约与本次 Swagger 补充（2026-10-23）
 
-现有实现已移动到 `project/src/modules/users/`，与下方阶段目标存在差异。创建必填 `email`（trim、转小写、最长 100）。可选且可空：`username`、`nickname`（出现时 1～50）、`phone`（出现时 1～20）、`sex`（0/1/2）、`avatar`（出现时 1～255）。创建和资料更新不接收 `password`。Update 通过 Swagger 的 PartialType 将资料字段改为可选，`skipNullProperties: false`，可空字段可传 `null` 清空；服务层拒绝 `email: null`。首次设密使用单独的 `POST /users/:id/password`，只接受 15～128 的密码字符串且不 trim。成功后仍不能登录，登录留到阶段 05 后续步骤。该接口目前没有认证。
+现有实现已移动到 `project/src/modules/users/`，与下方阶段目标存在差异。创建必填 `email`（trim、转小写、最长 100）。可选且可空：`username`、`nickname`（出现时 1～50）、`phone`（出现时 1～20）、`sex`（0/1/2）、`avatar`（出现时 1～255）。创建和资料更新不接收 `password`。Update 通过 Swagger 的 PartialType 将资料字段改为可选，`skipNullProperties: false`，可空字段可传 `null` 清空；服务层拒绝 `email: null`。首次设密使用单独的 `POST /users/:id/password`，只接受 15～128 的密码字符串且不 trim。设密成功后，阶段 05 的 `POST /auth/login` 可以登录；改密和 Guard 仍未实现。设密接口目前没有认证。
 
 | Method | 路径（前缀 /api/v1） | 当前请求与响应 | 已实现业务异常 |
 | --- | --- | --- | --- |
@@ -188,4 +188,4 @@ curl -i -X PATCH http://localhost:3000/api/v1/users/1 -H "Authorization: Bearer 
 
 ## 10. 后续扩展
 
-[05](../05-authentication/implementation.md)继续完成登录与会话；首次设密已单独实现，不把密码混入资料 DTO。[06](../06-authorization/implementation.md)完成管理权限与管理员保护；08补事务审计。批量导入、硬删除、身份复用和全模糊检索均需单独业务需求。
+[05](../05-authentication/implementation.md)已实现用户名登录；刷新、退出和改密仍在该阶段后续完成。首次设密不把密码混入资料 DTO。[06](../06-authorization/implementation.md)完成管理权限与管理员保护；08补事务审计。批量导入、硬删除、身份复用和全模糊检索均需单独业务需求。

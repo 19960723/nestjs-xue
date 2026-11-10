@@ -14,7 +14,7 @@
 | MySQL | 8.4 LTS，实施时锁补丁和镜像 digest | 满足 MySQL 8.x，生命周期优于 8.0 | 真实服务未检测；字符集 utf8mb4、UTC、InnoDB |
 | Redis | 8.x 稳定线，实施时选非 RC 补丁/digest | 缓存和跨实例限流；不存唯一身份事实 | 真实服务未检测；核对托管版本和许可/运维要求 |
 | Redis 客户端 | ioredis 6.0.0 | 一套客户端覆盖缓存、原子限流和生命周期 | 不叠加旧 cache-manager-ioredis 适配包，避免版本/TTL 混乱 |
-| JWT | @nestjs/jwt 12.0.3 | 复用 Nest 配置注入与签名校验 | 直接编写 Guard，不强制引入 Passport 或新的认证框架 |
+| JWT | @nestjs/jwt 12.0.3 | 复用 Nest 配置注入与签名校验 | 2026-11-09 已安装。registry 最新为 12.0.4，peer 相同，本批保持基线；直接使用 JwtService，不引入 Passport |
 | 密码 | argon2 0.45.1，Argon2id | 慢哈希与每密码盐，支持参数提升 | 在目标 Linux/CPU 实测原生模块；禁止复制宿主 node_modules 到容器 |
 | OpenAPI | @nestjs/swagger 12.0.2 | DTO 驱动契约与调试 | peers 明确支持 Nest12、TS6；生产默认关闭或受访问控制 |
 | 参数校验 | class-validator 0.15.1 / class-transformer 0.5.1 | DTO 运行时校验与显式转换 | TS interface 不能代替运行时 DTO class |

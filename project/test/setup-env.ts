@@ -9,3 +9,6 @@ delete process.env.OBSERVE_APP_KEY;
 delete process.env.OBSERVE_APP_SECRET;
 process.env.DATABASE_URL =
   'mysql://app_user:replace_me@127.0.0.1:3306/init_xue_dev';
+process.env.JWT_SECRET = 'test-only-jwt-secret-32chars-minimum';
+process.env.JWT_ISSUER = 'init-xue';
+process.env.JWT_AUDIENCE = 'init-xue-api';

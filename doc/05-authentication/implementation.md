@@ -1,6 +1,6 @@
 # 阶段 05：身份认证系统
 
-更新：2026-11-02。文档状态：已更新；功能状态：进行中（`sys_user_session` 已在已应用迁移中；已有 Argon2id 哈希与首次设密。登录、JWT、刷新、退出和重置未实现，HTTP 未验收）。前置：[04](../04-user-management/implementation.md)及01的Jest工具。安全策略见 [ADR0004](../decisions/0004-security-and-data-policy.md)。默认命令在project/。
+更新：2026-11-09。文档状态：已更新；功能状态：进行中（`sys_user_session` 已在已应用迁移中；已有 Argon2id 哈希、首次设密、用户名登录和 Access Guard。`GET /auth/me`、用户和角色接口需要有效 Access；健康检查和登录公开。刷新轮换、退出和重置未实现，HTTP 未验收）。前置：[04](../04-user-management/implementation.md)及01的Jest工具。安全策略见 [ADR0004](../decisions/0004-security-and-data-policy.md)。默认命令在project/。
 
 ## 1. 阶段目标
 
@@ -42,6 +42,32 @@ pnpm exec nest g controller modules/auth --no-spec
 密码默认15～128字符（单因素起点），允许空格/Unicode，不trim、不截断、不强制无意义复杂度；DTO防超长消耗。Argon2id起点memoryCost=19456 KiB、timeCost=2、parallelism=1，再按生产硬件压测调整并发预算，依据 [OWASP密码存储建议](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)。未压测前不能宣称参数适合所有负载。
 
 ## 5. 详细实施步骤
+
+### 当前登录切片（2026-11-09）
+
+本批只实现 `POST /api/v1/auth/login`。继续使用 Schema 里的 `UserSession`（`sys_user_session`），不新建迁移，不把下方草稿里的分表覆盖到现有表。
+
+- 只接受 `username` 与 `password`。用户名按创建用户的规则 trim，最长 50；密码 15～128，不 trim。没有用户名或尚未首次设密的用户无法登录。
+- 一行会话只保存一个 `refreshTokenHash`。本批创建会话并在响应中返回一次 Refresh 原文，不提供 `POST /auth/refresh`。轮换和重放检测留到后续增量。
+- `User` 没有 `tokenVersion`。Access payload 只放 `sub`、`sid`、`jti`，不放 `ver`，也不放密码、邮箱或权限。
+- 用户不存在、没有密码、已禁用、已软删或密码错误，都返回同一条 401。无用户或密码为空时，用同成本的预生成 Argon2id dummy 哈希校验一次。
+- 校验通过后用短事务重读用户：未删除、`status` 为 1，且密码哈希未变，才插入会话。事务提交后再签 Access。签名失败则撤销这条尚未交付的会话，不返回 token。
+- 登录切片本身不注册 Guard。全局校验见下一节。
+- 配置增加必填的 `JWT_SECRET`（至少 32 个字符）、`JWT_ISSUER`、`JWT_AUDIENCE`。`JWT_ACCESS_TTL_SECONDS` 默认 900、上限 86400；`REFRESH_TTL_SECONDS` 默认 604800、上限 2592000。Access 有效期必须小于 Refresh 有效期。
+- 本批不实现注册、退出、改密、密码重置和失败计数。`SESSION_MAX_TTL_SECONDS`、`AUTH_REGISTER_ENABLED`、`AUTH_RESET_ENABLED`、`AUTH_LIMIT_HMAC_SECRET` 仍不加入配置。
+
+### 当前 Guard 切片（2026-11-09）
+
+本批注册全局 `JwtAuthGuard`，并增加 `GET /api/v1/auth/me`。继续使用现有 `UserSession`，不新建迁移，不提供 `POST /auth/refresh`，也不校验 `ver`。`User` 仍然没有 `tokenVersion`。
+
+- `@Public()` 只标在 `GET /health/live` 和 `POST /auth/login`。用户、角色和 `GET /auth/me` 没有有效 Access 时返回 401。
+- 请求头必须是唯一的 `Authorization: Bearer <accessToken>`。验签固定 HS256、已配置的 issuer 和 audience。
+- `sub` 与 `sid` 都必须是正整数的十进制字符串。会话主键是 Int。
+- 再查会话：`id` 等于 `sid`、`userId` 等于 `sub`、`revokedAt` 为空、`expiresAt` 未过。对应用户未删除且 `status` 为 1。
+- token、会话或用户无效都返回同一条 401「身份无效」。数据库异常返回 503，不放行。日志不记录 token。
+- `req.user` 只放 `{ id, sessionId }`。`GET /auth/me` 用用户公开字段，不返回密码。
+- Swagger 仍只由 `SWAGGER_ENABLE` 控制，本批不改变它的访问方式。
+- 不实现退出、改密、重置、失败计数和刷新轮换。
 
 ### 5.1 增量建表与凭据服务
 
@@ -101,7 +127,7 @@ pnpm exec nest g controller modules/auth --no-spec
 
 ## 6. 数据库设计
 
-当前会话表以 Schema 里的 `UserSession`（`sys_user_session`）为准，并已包含在 `20261031082805_add_role_permission`。删除用户时是 Cascade，不是下方草稿里的 Restrict。未建密码重置表，未改这张会话表。2026-11-02 只增加 `AuthModule` / `PasswordService`，以及 `POST /users/:id/password`：密码为空、未删除且启用时写入 Argon2id。不登录、不签发 JWT。证据见 [CHG-20261102-002](../changelog/2026-11-02-002-initial-password.md)。
+当前会话表以 Schema 里的 `UserSession`（`sys_user_session`）为准，并已包含在 `20261031082805_add_role_permission`。删除用户时是 Cascade，不是下方草稿里的 Restrict。未建密码重置表，未改这张会话表。2026-11-02 增加 `AuthModule` / `PasswordService`，以及 `POST /users/:id/password`。2026-11-09 登录在校验通过后向该表现有列写入一条会话：`refreshTokenHash` 为 Refresh 原文的 SHA-256 十六进制摘要，`expiresAt` 由 `REFRESH_TTL_SECONDS` 计算，设备、IP 和 User-Agent 留空。不覆盖哈希，因此不能在本表上做重放检测。证据见 [CHG-20261102-002](../changelog/2026-11-02-002-initial-password.md) 与 [CHG-20261109-001](../changelog/2026-11-09-001-username-login.md)。
 
 下方代码块仍是更早的目标草稿：会话与 Refresh Token 分表，主键为 UUID。当前以 Schema 里的 `UserSession` 为准，不能用草稿覆盖它。草稿中的分表轮换、重放检测和密码重置仍未落地。
 
@@ -159,6 +185,21 @@ model AuthAttemptBucket {
 
 ## 7. API 设计
 
+### 当前代码契约（2026-11-09）
+
+前缀 `/api/v1`，成功响应仍走阶段 03 包装。已实现登录、Access Guard 和当前用户。登录成功的 `data` 为 `{accessToken,refreshToken,tokenType:"Bearer",expiresIn}`，`expiresIn` 取已校验的 `JWT_ACCESS_TTL_SECONDS`，并设置 `Cache-Control: no-store`。没有刷新、退出、改密和重置接口。
+
+`GET /health/live` 与 `POST /auth/login` 公开。其余现有 HTTP 路由，包括用户、角色和 `GET /auth/me`，都要求有效 Access。Swagger 仍只受 `SWAGGER_ENABLE` 开关控制。
+
+| Method | 路径 | 当前请求与响应 | 已实现业务异常 |
+| --- | --- | --- | --- |
+| POST | /auth/login | username 必填且 trim 后 1～50，password 必填、15～128、不 trim → 200 TokenSet | 400 校验失败；401 用户名或密码错误 |
+| GET | /auth/me | Bearer Access → 200 公开 User | 401 身份无效；503 数据库不可用 |
+
+登录 401 不区分用户不存在、未设密、已禁用、已软删和密码错误。Guard 的 401 也不区分缺 token、签名错误、过期、会话撤销、会话过期、用户禁用或已软删。数据库查询异常返回 503，不放行。签名失败撤销未交付会话并返回 500，响应不含 token。
+
+### 阶段目标契约（后续实施）
+
 前缀/api/v1，响应按03。TokenSet的data=`{accessToken,refreshToken,tokenType:"Bearer",expiresIn:900}`；JSON Refresh适合受控API客户端。浏览器采用HttpOnly Cookie前须重写端点入参/CSRF/CORS/Set-Cookie测试，不能两种存储方式同时含糊使用。
 
 | 接口名称 | Method/URL | 请求 | data | 正常码 | 异常码 | 认证/权限 |
@@ -190,9 +231,11 @@ curl -i -X POST http://localhost:3000/api/v1/auth/refresh -H 'Content-Type: appl
 - [ ] 失败计数并发安全；公开注册/reset开关受控，未知账号提示一致。
 - [ ] 重置单次/到期/竞争和可信交付验收；未配置渠道时保持关闭且未完成。
 
-验收记录：未执行。密码重置交付渠道与浏览器token存储方案待产品确认。
+验收记录：登录切片的 HTTP、Jest 和数据库行为未验收。密码重置交付渠道与浏览器 token 存储方案待产品确认。静态检查结果见对应 changelog。
 
 2026-10-31 UserSession 仅做 Schema 检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、Prisma 7.10.1；运行目录 `project/`。占位 `DATABASE_URL` 下 `prisma validate` 与 `prisma generate --config prisma7.config.ts` 退出 0。未改业务模块，未执行 tsc、Jest、migrate 或真实连接。证据见 [CHG-20261031-006](../changelog/2026-10-31-006-user-session.md)。
+
+2026-11-09 用户名登录只做静态检查，命令和结果见 [CHG-20261109-001](../changelog/2026-11-09-001-username-login.md)。未执行 Jest、HTTP 或迁移。不将阶段 05 标为已验证。
 
 ## 9. 常见问题
 

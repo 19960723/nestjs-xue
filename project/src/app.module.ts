@@ -6,12 +6,20 @@ import type { Environment } from './config/env.validation.js';
 import { CommonModule } from './common/common.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { PrismaModule } from './database/prisma/prisma.module.js';
+import { AuthModule } from './modules/auth/auth.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { RolesModule } from './modules/roles/roles.module.js';
 
 // 固定的模块依赖在此声明；环境配置与可选 Observe 由下方工厂按需加入。
 @Module({
-  imports: [CommonModule, HealthModule, PrismaModule, UsersModule, RolesModule],
+  imports: [
+    CommonModule,
+    HealthModule,
+    PrismaModule,
+    AuthModule,
+    UsersModule,
+    RolesModule,
+  ],
 })
 export class AppModule {}
 
