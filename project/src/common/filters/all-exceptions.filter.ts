@@ -13,6 +13,7 @@ import type {
   ApiErrorResponse,
   ValidationDetail,
 } from '../types/api-response.js';
+import { AttemptLimitedException } from '../exceptions/attempt-limited.exception.js';
 import { ErrorCode } from '../types/error-code.js';
 
 /**
@@ -55,6 +56,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (requestId) {
       httpAdapter.setHeader(response, 'X-Request-Id', requestId);
+    }
+    if (exception instanceof AttemptLimitedException) {
+      httpAdapter.setHeader(
+        response,
+        'Retry-After',
+        String(exception.retryAfterSeconds),
+      );
     }
 
     httpAdapter.reply(response, body, mapped.status);

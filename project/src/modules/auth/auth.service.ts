@@ -13,6 +13,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../database/prisma/prisma.service.js';
 import { userPublicSelect } from '../users/user.select.js';
 import { isDatabaseError } from './database-error.js';
+import { LoginLimitService } from './login-limit.service.js';
 import { PasswordService } from './password.service.js';
 
 const LOGIN_FAILED = '用户名或密码错误';
@@ -76,15 +77,21 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
+    private readonly loginLimits: LoginLimitService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {}
 
   /**
-   * 校验凭据并创建一条会话。
+   * 校验凭据并创建一条会话。先占用登录次数，再做密码哈希。
    * Refresh 是 32 字节随机值，入库的是它的 SHA-256 十六进制摘要。
    */
-  async login(username: string, password: string): Promise<TokenSet> {
+  async login(
+    username: string,
+    password: string,
+    ip: string,
+  ): Promise<TokenSet> {
+    await this.loginLimits.reserve(username, ip);
     const user = await this.prisma.user.findUnique({
       where: { username },
       select: { id: true, password: true, status: true, deletedAt: true },

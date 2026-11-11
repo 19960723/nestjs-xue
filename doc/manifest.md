@@ -46,6 +46,7 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-11-11-001-login-attempt-limit.md](changelog/2026-11-11-001-login-attempt-limit.md)
 - [doc/changelog/2026-11-10-005-session-revoke.md](changelog/2026-11-10-005-session-revoke.md)
 - [doc/changelog/2026-11-10-004-refresh-rotation.md](changelog/2026-11-10-004-refresh-rotation.md)
 - [doc/changelog/2026-11-10-003-access-guard-http.md](changelog/2026-11-10-003-access-guard-http.md)

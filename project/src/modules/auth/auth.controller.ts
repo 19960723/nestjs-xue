@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Patch,
   Post,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -17,8 +18,10 @@ import {
   ApiOperation,
   ApiServiceUnavailableResponse,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { User } from '../users/entities/user.entity.js';
 import { AuthService } from './auth.service.js';
 import { CurrentUser } from './decorators/current-user.decorator.js';
@@ -47,14 +50,21 @@ export class AuthController {
   @ApiOperation({
     summary: '登录',
     description:
-      '使用用户名和密码登录。没有用户名、尚未设密、已禁用或已删除的用户都返回同一条 401。',
+      '使用用户名和密码登录。没有用户名、尚未设密、已禁用或已删除的用户都返回同一条 401。同一用户名 15 分钟内最多 10 次尝试，同一来源地址每分钟最多 60 次。',
   })
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({ description: '登录成功', type: TokenSetDto })
   @ApiBadRequestResponse({ description: '请求字段不符合校验规则' })
   @ApiUnauthorizedResponse({ description: '用户名或密码错误' })
-  login(@Body() dto: LoginDto): Promise<TokenSetDto> {
-    return this.authService.login(dto.username, dto.password);
+  @ApiTooManyRequestsResponse({ description: '尝试过于频繁' })
+  @ApiServiceUnavailableResponse({ description: '数据库不可用' })
+  login(@Req() request: Request, @Body() dto: LoginDto): Promise<TokenSetDto> {
+    const address = request.socket?.remoteAddress;
+    return this.authService.login(
+      dto.username,
+      dto.password,
+      typeof address === 'string' ? address : 'unknown',
+    );
   }
 
   /**

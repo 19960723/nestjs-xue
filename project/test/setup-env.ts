@@ -12,3 +12,4 @@ process.env.DATABASE_URL =
 process.env.JWT_SECRET = 'test-only-jwt-secret-32chars-minimum';
 process.env.JWT_ISSUER = 'init-xue';
 process.env.JWT_AUDIENCE = 'init-xue-api';
+process.env.AUTH_LIMIT_HMAC_SECRET = 'test-only-jwt-secret-32chars-minimum';

@@ -12,6 +12,7 @@ function envWithDb(
     JWT_SECRET: VALID_JWT_SECRET,
     JWT_ISSUER: 'init-xue',
     JWT_AUDIENCE: 'init-xue-api',
+    AUTH_LIMIT_HMAC_SECRET: VALID_JWT_SECRET,
     ...overrides,
   };
 }
@@ -32,6 +33,11 @@ describe('validateEnv', () => {
       JWT_ACCESS_TTL_SECONDS: 900,
       REFRESH_TTL_SECONDS: 604800,
       SESSION_MAX_TTL_SECONDS: 2592000,
+      AUTH_LIMIT_HMAC_SECRET: VALID_JWT_SECRET,
+      AUTH_ACCOUNT_MAX_ATTEMPTS: 10,
+      AUTH_ACCOUNT_WINDOW_SECONDS: 900,
+      AUTH_IP_MAX_ATTEMPTS: 60,
+      AUTH_IP_WINDOW_SECONDS: 60,
     });
   });
 
@@ -173,6 +179,12 @@ describe('validateEnv', () => {
         }),
       ),
     ).toThrow('JWT_ACCESS_TTL_SECONDS 必须小于 REFRESH_TTL_SECONDS');
+  });
+
+  it('rejects a missing login limit secret without echoing it', () => {
+    expect(() =>
+      validateEnv(envWithDb({ AUTH_LIMIT_HMAC_SECRET: 'secret-marker' })),
+    ).toThrow(/^AUTH_LIMIT_HMAC_SECRET 必须是至少 32 个字符的非空字符串$/);
   });
 
   it('rejects a session cap shorter than the refresh TTL', () => {

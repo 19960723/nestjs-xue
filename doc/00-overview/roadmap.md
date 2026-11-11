@@ -1,16 +1,16 @@
 # 总体路线图与依赖
 
-更新：2026-11-10。文档状态：已更新；功能整体：进行中。阶段 01 已留存本地验收记录；阶段 02 已有 Prisma 集成及五份已应用迁移，阶段 03/04 已有 Swagger 和基础 CRUD，数据库业务仍未验收。Permission、RolePermission 与会话表已包含在 `20261031082805_add_role_permission`。阶段 05 的登录、全局 Access Guard、`GET /auth/me`、Refresh 轮换、退出和修改密码已本地 HTTP 验收，重置未实现。当前先整理现有实现，再按阶段补齐退出门槛。
+更新：2026-11-11。文档状态：已更新；功能整体：进行中。阶段 01 已留存本地验收记录；阶段 02 已有 Prisma 集成及六份已应用迁移，阶段 03/04 已有 Swagger 和基础 CRUD，数据库业务仍未验收。Permission、RolePermission 与会话表已包含在 `20261031082805_add_role_permission`。阶段 05 的登录、全局 Access Guard、`GET /auth/me`、Refresh 轮换、退出、修改密码和登录失败限制已本地 HTTP 验收，重置未实现。当前先整理现有实现，再按阶段补齐退出门槛。
 
 ## 阶段与门槛
 
 | 阶段 | 核心交付 | 前置依赖 | 功能状态 | 退出门槛 |
 | --- | --- | --- | --- | --- |
 | [01 初始化](../01-initialization/implementation.md) | 版本/工具统一、配置、启动、存活检查 | 环境盘点 | 已验证（本地） | strict/build/工具最小测试/配置失败即停/health |
-| [02 数据库](../02-database/implementation.md) | Prisma 7、User 基础表、迁移、生命周期 | 01 | 进行中（DATABASE_URL 已统一，五份迁移已应用，连通未验收） | 生成/构建、隔离库迁移、连接关闭/事务 |
+| [02 数据库](../02-database/implementation.md) | Prisma 7、User 基础表、迁移、生命周期 | 01 | 进行中（DATABASE_URL 已统一，六份迁移已应用，连通未验收） | 生成/构建、隔离库迁移、连接关闭/事务 |
 | [03 API 规范](../03-api-standards/implementation.md) | DTO/响应/异常/OpenAPI/请求日志 | 01、02 的错误类型 | 进行中（统一包装/异常/requestId 已实现，HTTP 未验收） | 错误矩阵与文档可验证 |
 | [04 用户管理](../04-user-management/implementation.md) | CRUD/软删/批量/状态 | 02、03 | 进行中（基础 CRUD 已有代码，业务未验收） | 数据一致性与基本测试，限本地 |
-| [05 认证](../05-authentication/implementation.md) | 哈希/JWT/轮换/撤销/重置 | 04；01 的 Jest 骨架 | 进行中（登录、Guard、刷新、退出和修改密码已本地 HTTP 验收；重置未实现） | 并发刷新与退出立即失效等安全验收 |
+| [05 认证](../05-authentication/implementation.md) | 哈希/JWT/轮换/撤销/重置 | 04；01 的 Jest 骨架 | 进行中（登录、Guard、刷新、退出、修改密码和登录失败限制已本地 HTTP 验收；重置未实现） | 并发刷新与退出立即失效等安全验收 |
 | [06 RBAC](../06-authorization/implementation.md) | 角色/权限/授权 Guard | 05 | 计划中（角色资源 CRUD 已实现；Permission 与 RolePermission 已在已应用迁移中，授权未实现） | 默认拒绝、越权/权限变更测试 |
 | [07 Redis](../07-redis/implementation.md) | 缓存、跨实例限流与故障策略 | 04～06 | 计划中 | 缓存收敛、共享限流、故障演练 |
 | [08 公共能力](../08-common/implementation.md) | 配置/日志加强、文件/审计/任务/就绪检查 | 02～07 | 计划中 | 事务审计、文件安全和探针分离 |

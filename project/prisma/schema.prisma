@@ -177,3 +177,15 @@ model RefreshToken {
   @@index([expiresAt])
   @@map("sys_refresh_token")
 }
+
+// 登录尝试的固定窗口计数。键是 HMAC，不保存用户名或 IP 原文。
+model AuthAttemptBucket {
+  keyHash     String   @map("key_hash") @db.Char(64)
+  windowStart DateTime @map("window_start") @db.DateTime(0)
+  attempts    Int      @default(1)
+  expiresAt   DateTime @map("expires_at") @db.DateTime(3)
+
+  @@id([keyHash, windowStart])
+  @@index([expiresAt])
+  @@map("auth_attempt_buckets")
+}

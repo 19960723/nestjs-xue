@@ -1,6 +1,6 @@
 # 阶段 05：身份认证系统
 
-更新：2026-11-10。文档状态：已更新；功能状态：进行中（已有 Argon2id 哈希、首次设密、用户名登录、全局 Access Guard、`GET /auth/me`、Refresh 轮换、当前退出、全部退出和修改密码。这些切片已于 2026-11-10 本地 HTTP 验收。重置未实现，阶段整体未完成）。前置：[04](../04-user-management/implementation.md)及01的Jest工具。安全策略见 [ADR0004](../decisions/0004-security-and-data-policy.md)。默认命令在project/。
+更新：2026-11-11。文档状态：已更新；功能状态：进行中（已有 Argon2id 哈希、首次设密、用户名登录、全局 Access Guard、`GET /auth/me`、Refresh 轮换、当前退出、全部退出、修改密码和登录失败限制。这些切片已本地 HTTP 验收。重置未实现，阶段整体未完成）。前置：[04](../04-user-management/implementation.md)及01的Jest工具。安全策略见 [ADR0004](../decisions/0004-security-and-data-policy.md)。默认命令在project/。
 
 ## 1. 阶段目标
 
@@ -93,6 +93,17 @@ pnpm exec nest g controller modules/auth --no-spec
 - 登录、刷新、退出和改密在事务里先锁用户行，再改会话。签名使用事务中读到的版本。
 - 用户资料更新仍不改状态。删除仍是硬删除，会话由外键级联移除。本批不新增禁用或软删接口。
 - 不实现密码重置和失败计数。
+
+### 当前登录失败限制（2026-11-11）
+
+已接线。2026-11-11 本地 HTTP 验收见第 8 节。只限制 `POST /api/v1/auth/login`。Redis 尚未接入，计数放在 MySQL 表 `auth_attempt_buckets`。
+
+- 每次登录先占用次数，再计算密码哈希。超过上限直接 429「尝试过于频繁」，并设置 `Retry-After` 为当前窗口剩余秒数。响应不区分是用户名桶还是来源地址桶。
+- 用户名桶默认 15 分钟 10 次，来源地址桶默认 1 分钟 60 次。成功登录不减少次数。两个桶都用 HMAC-SHA256，库里不保存用户名或地址原文。密钥是必填的 `AUTH_LIMIT_HMAC_SECRET`，至少 32 个字符，没有默认值。
+- 次数用 `INSERT ... ON DUPLICATE KEY UPDATE attempts = attempts + 1` 在事务里增加。并发请求按行锁串行，读到的是增加之后的值。增加会提交，超限不回滚。
+- 来源地址只取直接连接的 `socket.remoteAddress`，不读取 `X-Forwarded-For`。IPv4 映射地址去掉 `::ffff:` 前缀。
+- 每次登录顺带删除最多 100 条已到期的桶。没有单独的定时清理任务。
+- 数据库故障返回 503，不继续核对密码。不实现注册和密码重置。
 
 ### 5.1 增量建表与凭据服务
 
@@ -218,7 +229,7 @@ model AuthAttemptBucket {
 
 | Method | 路径 | 当前请求与响应 | 已实现业务异常 |
 | --- | --- | --- | --- |
-| POST | /auth/login | username 必填且 trim 后 1～50，password 必填、15～128、不 trim → 200 TokenSet | 400 校验失败；401 用户名或密码错误 |
+| POST | /auth/login | username 必填且 trim 后 1～50，password 必填、15～128、不 trim → 200 TokenSet | 400 校验失败；401 用户名或密码错误；429 尝试过于频繁；503 数据库不可用 |
 | POST | /auth/refresh | refreshToken 必填、43 位 base64url、不 trim → 200 TokenSet | 400 格式不正确；401 身份无效；503 数据库不可用 |
 | GET | /auth/me | Bearer Access → 200 公开 User | 401 身份无效；503 数据库不可用 |
 | POST | /auth/logout | Bearer Access → 200，data 为 null | 401 身份无效；503 数据库不可用 |
@@ -260,7 +271,7 @@ curl -i -X POST http://localhost:3000/api/v1/auth/refresh -H 'Content-Type: appl
 - [ ] 失败计数并发安全；公开注册/reset开关受控，未知账号提示一致。
 - [ ] 重置单次/到期/竞争和可信交付验收；未配置渠道时保持关闭且未完成。
 
-验收记录：登录、Guard、刷新、退出和修改密码已于 2026-11-10 本地 HTTP 验收，证据见下方记录和 [CHG-20261110-003](../changelog/2026-11-10-003-access-guard-http.md) 至 [CHG-20261110-005](../changelog/2026-11-10-005-session-revoke.md)。过期 token、错误算法、数据库 503、禁用和软删用户尚未覆盖。重置未实现。密码重置交付渠道与浏览器 token 存储方案待产品确认。阶段 05 整体仍为进行中。
+验收记录：登录、Guard、刷新、退出、修改密码和登录失败限制已本地 HTTP 验收，证据见下方记录和 [CHG-20261110-003](../changelog/2026-11-10-003-access-guard-http.md) 至 [CHG-20261111-001](../changelog/2026-11-11-001-login-attempt-limit.md)。过期 token、错误算法、数据库 503、禁用和软删用户尚未覆盖。重置未实现。密码重置交付渠道与浏览器 token 存储方案待产品确认。阶段 05 整体仍为进行中。
 
 2026-10-31 UserSession 仅做 Schema 检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、Prisma 7.10.1；运行目录 `project/`。占位 `DATABASE_URL` 下 `prisma validate` 与 `prisma generate --config prisma7.config.ts` 退出 0。未改业务模块，未执行 tsc、Jest、migrate 或真实连接。证据见 [CHG-20261031-006](../changelog/2026-10-31-006-user-session.md)。
 
@@ -310,6 +321,16 @@ curl -i -X POST http://localhost:3000/api/v1/auth/refresh -H 'Content-Type: appl
 | 同一 Access 并行提交两个不同新密码 | 一次 200、一次 409。两个新密码里只有一个能登录 |
 
 未覆盖禁用、软删、数据库 503 和无 `ver` 的旧 Access。用户接口仍没有禁用和软删。重置未验收。阶段 05 不标为已验证。证据见 [CHG-20261110-005](../changelog/2026-11-10-005-session-revoke.md)。
+
+2026-11-11 登录失败限制的 HTTP 验收：Darwin arm64、Node 24.18.0、pnpm 11.13.1、Prisma 7.10.1；运行目录 `project/`。先应用 `20261111151500_add_auth_attempt_bucket`，只新建 `auth_attempt_buckets`。应用后库相对 Schema 的 diff 为空。随后重启 `pnpm run start`，监听 `http://127.0.0.1:3000`。两个临时用户使用文档中的测试密码，验收后删除。命令 `node --env-file=.env scripts/verify-login-limit.mjs` 退出码 0。未记录 token、密码、HMAC 或连接串。
+
+| 请求 | 结果 |
+| --- | --- |
+| 同一用户名先正确登录 1 次，再错误登录 9 次 | 第 1 次 200，随后 9 次都是 401 |
+| 第 11 次使用正确密码 | 429，`RATE_LIMITED`，「尝试过于频繁」，`Retry-After` 为正整数 |
+| 另一个用户名并行错误登录 15 次 | 10 次 401，5 次 429，没有其它状态码 |
+
+未覆盖来源地址每分钟 60 次的上限、数据库 503 和到期桶清理。重置未验收。阶段 05 不标为已验证。证据见 [CHG-20261111-001](../changelog/2026-11-11-001-login-attempt-limit.md)。
 
 ## 9. 常见问题
 

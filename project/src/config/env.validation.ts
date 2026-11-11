@@ -29,6 +29,11 @@ export interface Environment extends Record<string, unknown> {
   JWT_ACCESS_TTL_SECONDS: number;
   REFRESH_TTL_SECONDS: number;
   SESSION_MAX_TTL_SECONDS: number;
+  AUTH_LIMIT_HMAC_SECRET: string;
+  AUTH_ACCOUNT_MAX_ATTEMPTS: number;
+  AUTH_ACCOUNT_WINDOW_SECONDS: number;
+  AUTH_IP_MAX_ATTEMPTS: number;
+  AUTH_IP_WINDOW_SECONDS: number;
 }
 
 const MIN_JWT_SECRET_LENGTH = 32;
@@ -38,6 +43,14 @@ const REFRESH_TTL_DEFAULT = 604800;
 const REFRESH_TTL_MAX = 2592000;
 const SESSION_MAX_TTL_DEFAULT = 2592000;
 const SESSION_MAX_TTL_MAX = 2592000;
+const AUTH_ACCOUNT_MAX_DEFAULT = 10;
+const AUTH_ACCOUNT_MAX_LIMIT = 1000;
+const AUTH_ACCOUNT_WINDOW_DEFAULT = 900;
+const AUTH_ACCOUNT_WINDOW_MAX = 86400;
+const AUTH_IP_MAX_DEFAULT = 60;
+const AUTH_IP_MAX_LIMIT = 10000;
+const AUTH_IP_WINDOW_DEFAULT = 60;
+const AUTH_IP_WINDOW_MAX = 3600;
 
 const REMOVED_DATABASE_KEYS = [
   'DATABASE_HOST',
@@ -54,16 +67,20 @@ function requiredText(name: string, value: unknown): string {
   return value.trim();
 }
 
-function requireJwtSecret(value: unknown): string {
+function requireSecret(name: string, value: unknown): string {
   if (
     typeof value !== 'string' ||
     value.trim().length < MIN_JWT_SECRET_LENGTH
   ) {
     throw new Error(
-      `JWT_SECRET 必须是至少 ${MIN_JWT_SECRET_LENGTH} 个字符的非空字符串`,
+      `${name} 必须是至少 ${MIN_JWT_SECRET_LENGTH} 个字符的非空字符串`,
     );
   }
   return value;
+}
+
+function requireJwtSecret(value: unknown): string {
+  return requireSecret('JWT_SECRET', value);
 }
 
 function boundedInt(
@@ -187,6 +204,34 @@ export function validateEnv(env: Record<string, unknown>): Environment {
       'SESSION_MAX_TTL_SECONDS 必须大于或等于 REFRESH_TTL_SECONDS',
     );
   }
+  const authLimitSecret = requireSecret(
+    'AUTH_LIMIT_HMAC_SECRET',
+    env.AUTH_LIMIT_HMAC_SECRET,
+  );
+  const accountMaxAttempts = boundedInt(
+    'AUTH_ACCOUNT_MAX_ATTEMPTS',
+    env.AUTH_ACCOUNT_MAX_ATTEMPTS,
+    AUTH_ACCOUNT_MAX_DEFAULT,
+    AUTH_ACCOUNT_MAX_LIMIT,
+  );
+  const accountWindowSeconds = boundedInt(
+    'AUTH_ACCOUNT_WINDOW_SECONDS',
+    env.AUTH_ACCOUNT_WINDOW_SECONDS,
+    AUTH_ACCOUNT_WINDOW_DEFAULT,
+    AUTH_ACCOUNT_WINDOW_MAX,
+  );
+  const ipMaxAttempts = boundedInt(
+    'AUTH_IP_MAX_ATTEMPTS',
+    env.AUTH_IP_MAX_ATTEMPTS,
+    AUTH_IP_MAX_DEFAULT,
+    AUTH_IP_MAX_LIMIT,
+  );
+  const ipWindowSeconds = boundedInt(
+    'AUTH_IP_WINDOW_SECONDS',
+    env.AUTH_IP_WINDOW_SECONDS,
+    AUTH_IP_WINDOW_DEFAULT,
+    AUTH_IP_WINDOW_MAX,
+  );
 
   return {
     NODE_ENV: nodeEnv,
@@ -212,5 +257,10 @@ export function validateEnv(env: Record<string, unknown>): Environment {
     JWT_ACCESS_TTL_SECONDS: accessTtl,
     REFRESH_TTL_SECONDS: refreshTtl,
     SESSION_MAX_TTL_SECONDS: sessionMaxTtl,
+    AUTH_LIMIT_HMAC_SECRET: authLimitSecret,
+    AUTH_ACCOUNT_MAX_ATTEMPTS: accountMaxAttempts,
+    AUTH_ACCOUNT_WINDOW_SECONDS: accountWindowSeconds,
+    AUTH_IP_MAX_ATTEMPTS: ipMaxAttempts,
+    AUTH_IP_WINDOW_SECONDS: ipWindowSeconds,
   };
 }
