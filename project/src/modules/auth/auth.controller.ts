@@ -24,6 +24,7 @@ import {
 import type { Request } from 'express';
 import { User } from '../users/entities/user.entity.js';
 import { AuthService } from './auth.service.js';
+import { Authenticated } from '../../common/decorators/authenticated.decorator.js';
 import { CurrentUser } from './decorators/current-user.decorator.js';
 import { Public } from './decorators/public.decorator.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
@@ -90,6 +91,7 @@ export class AuthController {
   }
 
   /** 撤销当前 Access 对应的会话。成功后这张 Access 和配套 Refresh 不能再使用。 */
+  @Authenticated()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
@@ -106,6 +108,7 @@ export class AuthController {
   }
 
   /** 提升 tokenVersion 并撤销该用户全部会话。调用方需要重新登录。 */
+  @Authenticated()
   @Post('logout-all')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
@@ -125,6 +128,7 @@ export class AuthController {
    * 核对原密码后更换。成功会使全部旧 Access 和 Refresh 失效，需要重新登录。
    * 响应不返回密码或哈希。
    */
+  @Authenticated()
   @Patch('password')
   @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
@@ -152,6 +156,7 @@ export class AuthController {
   }
 
   /** 用当前 Access 读取公开资料。没有有效身份时由 Guard 返回 401。 */
+  @Authenticated()
   @Get('me')
   @ApiBearerAuth()
   @ApiOperation({

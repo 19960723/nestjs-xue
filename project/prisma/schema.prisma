@@ -47,6 +47,7 @@ model Role {
   code        String   @unique @db.VarChar(50)
   description String?  @db.VarChar(255)
   status      Int      @default(1) @db.TinyInt // 1=启用 0=禁用
+  isSystem    Boolean  @default(false) @map("is_system") // 种子维护的系统角色，接口不能删除、禁用或改编码
   sort        Int      @default(0)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime? @updatedAt @map("updated_at")

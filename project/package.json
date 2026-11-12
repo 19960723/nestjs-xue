@@ -15,6 +15,7 @@
     "start:prod": "node dist/main.js",
     "prisma:generate": "prisma generate --config prisma7.config.ts",
     "prisma:migrate": "prisma migrate dev --config prisma7.config.ts",
+    "authz:seed": "node --env-file=.env scripts/seed-permissions.mjs",
     "lint": "eslint src test --max-warnings=0",
     "test": "pnpm run test:compile && node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.mjs",
     "test:cov": "pnpm run test:compile && node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.mjs --coverage",

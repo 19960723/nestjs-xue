@@ -345,4 +345,4 @@ curl -i -X POST http://localhost:3000/api/v1/auth/refresh -H 'Content-Type: appl
 
 ## 10. 后续扩展
 
-[06](../06-authorization/implementation.md)添加实时权限，不依赖JWT角色快照；[07](../07-redis/implementation.md)共享限流；08清理到期会话/桶。MFA、SSO、Cookie模式、设备列表、异常登录检测按需求单独评审。
+[06](../06-authorization/implementation.md)的权限 Guard、权限目录和角色分配已接入。admin 尚未授给任何账号。[07](../07-redis/implementation.md)共享限流；08清理到期会话/桶。MFA、SSO、Cookie模式、设备列表、异常登录检测按需求单独评审。

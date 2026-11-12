@@ -1,6 +1,6 @@
 # 阶段 06：RBAC 权限系统
 
-更新：2026-11-02。文档状态：已更新；功能状态：RBAC 计划中（角色资源 CRUD 已实现；Permission 与 RolePermission 已写入 Schema，并包含在已应用的 `20261031082805_add_role_permission`；授权 Guard 未实现，数据库行为未验收）。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
+更新：2026-11-12。文档状态：已更新；功能状态：进行中（角色资源 CRUD、权限 Guard、权限目录和角色分配已实现，相关切片已本地 HTTP 验收。尚未把 admin 授给任何账号，也没有 permissionVersion）。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
 
 ## 1. 阶段目标
 
@@ -40,6 +40,23 @@ Auth Guard先验证身份，PermissionsGuard再从MySQL查未删除ACTIVE用户�
 - 命令（后续）：`pnpm exec prisma migrate dev --name add_rbac --create-only`，审阅后应用、generate；为seed/bootstrap单独tsc配置编译到`.scripts-dist`再Node运行，不能直接Node执行带Nest装饰器的TS。命令接入后记录具体脚本/结果。
 - 预期/验证：种子两次执行行数不变；无权限授予意外扩大，bootstrap失败不遗留半个管理员；05注册默认角色关联放进同一事务。
 
+#### 5.1.1 当前权限目录（2026-11-12）
+
+没有把草稿里的主键、`enabled` 或 Restrict 外键覆盖到现有表。只给 `roles` 增加 `is_system`，默认 false。现有普通角色保持 false。
+
+种子是 `project/scripts/seed-permissions.mjs`，命令 `pnpm authz:seed`。它不在启动时执行，也不创建用户或密码。重复执行不新增权限。当前目录是这 8 个 API 权限：`users:create`、`users:read`、`users:update`、`users:delete`、`users:assign-roles`、`roles:read`、`roles:write`、`permissions:read`。`files`、`audit` 和 `users:update-status` 还没有对应接口，不写入目录。
+
+种子保证两个系统角色：
+
+| 编码 | 权限 |
+| --- | --- |
+| `admin` | 上面 8 个权限。每次种子都把这个角色的权限集改回目录 |
+| `member` | 创建时为空，只够访问已登录即可用的接口。之后不覆盖别人加过的权限 |
+
+角色编码在当前库里不区分大小写。2026-11-12 已有未分配、无权限的 `ADMIN`，种子把它标成系统角色并写入 8 个权限，没有改编码，也没有分配给用户。如果同名角色已经有用户或权限，种子会停止。
+
+第一次把 admin 交给已有账号用 `node --env-file=.env scripts/grant-admin.mjs <username>`。它只给启用且未删除的用户补上 admin 关联，不创建账号，也不改密码。本次没有执行这条命令，所以现在没有任何用户持有 admin。
+
 ### 5.2 定义授权元数据与Guard顺序
 
 - 目标：所有路由都明确声明访问策略。
@@ -57,6 +74,31 @@ remove(@Param('id', ParseIntPipe) id: number) {
 - Guard注册：全局顺序Auth先Permissions后，在AppModule/全局Provider配置中集中声明，并移除05在AuthModule中的旧APP_GUARD绑定以免重复运行，不能分散注册并假定顺序；必要时由一个组合Guard顺序await调用两个Provider。不得让Auth依赖Authorization又互相import。普通路由认证失败401；已认证但无元数据/无权403；数据库故障503。
 - 命令：`pnpm test`，测试记录两个Guard调用顺序、所有路由元数据覆盖、匿名先401、无权限403、显式Authenticated可过。
 - 预期/验证：忘记装饰器的新增管理接口不会公开；Public只用于明确的认证入口和存活探针。
+
+#### 5.2.1 当前权限 Guard 切片（2026-11-12）
+
+这一批只做默认拒绝。没有新增表，没有启动时种子，也没有默认管理员。查询写在 Guard 里，没有单独的 authorization.service。
+
+| 声明 | 行为 |
+| --- | --- |
+| `@Public()` | 跳过身份和权限。用于 `GET /health/live`、`POST /auth/login`、`POST /auth/refresh` |
+| `@Authenticated()` | 有效 Access 即可。用于 `GET /auth/me`、`POST /auth/logout`、`POST /auth/logout-all`、`PATCH /auth/password` |
+| `@RequirePermissions(...)` | 有效 Access，并且当前用户同时具备列出的全部权限码 |
+
+权限码和路由：
+
+| 权限码 | 路由 |
+| --- | --- |
+| `users:create` | `POST /users` |
+| `users:read` | `GET /users`、`GET /users/:id` |
+| `users:update` | `PATCH /users/:id`、`POST /users/:id/password` |
+| `users:delete` | `DELETE /users/:id` |
+| `roles:read` | `GET /roles`、`GET /roles/:id` |
+| `roles:write` | `POST /roles`、`PATCH /roles/:id`、`DELETE /roles/:id` |
+
+`AppModule` 用唯一的 `ApiGuard` 先执行 Access 校验，再执行权限校验。`AuthModule` 不再自己注册全局 Guard。没有令牌返回 401「身份无效」。已登录但没有声明、声明冲突或缺少任一权限码，返回 403「权限不足」。数据库故障返回 503，不放行。
+
+每次请求直接查启用中的权限、启用中的角色和未删除的启用用户。不读 JWT 里的角色，也不缓存。删掉 `user_roles` 或 `role_permissions` 后，下一请求立即 403。现有账号如果没有这些关联，调用用户和角色接口会得到 403；查看自己、退出和修改密码仍然可用。
 
 ### 5.3 实现角色与关联管理
 
@@ -118,6 +160,22 @@ remove(@Param('id', ParseIntPipe) id: number) {
 - 更新显式写入 name/code/description/status/sort，undefined 交给 Prisma 跳过；仍允许改 code 和空 PATCH。code 冲突 409。
 - 删除在同一事务内确认角色存在且 `user_roles` 计数为 0 后物理删除；已分配则 409「角色已分配给用户，无法删除」，避免当前 Cascade 外键误清关联。成功由全局包装输出 `data: null`。
 - 删除空文件 `dto/role.vo.ts`。未加权限装饰器，完整 RBAC 仍计划中。
+
+#### 5.3.5 当前角色分配（2026-11-12）
+
+分配接口放在授权模块，不改用户资料接口。资料接口仍然不接收角色字段。
+
+| 接口 | 权限 | 结果 |
+| --- | --- | --- |
+| `GET /permissions` | `permissions:read` | 全部权限目录 |
+| `GET /roles/:id/permissions` | `roles:read` | 该角色当前权限 |
+| `PUT /roles/:id/permissions` | `roles:write` | 用 `permissionIds` 全量替换，空数组清空 |
+| `GET /users/:id/roles` | `users:assign-roles` | 该用户当前角色 |
+| `PUT /users/:id/roles` | `users:assign-roles` | 用 `roleIds` 全量替换，空数组清空 |
+
+替换在一个事务里完成。权限或角色不存在、已停用，返回 404，不会留下部分关联。列表最多 100 个，重复返回 400。操作者只能授予自己已经具备的启用权限；做不到时返回 403「权限不足」。不能修改自己的角色。系统角色不能删除、禁用、修改编码，它的权限集也不能通过接口替换。
+
+拿掉某个用户的 admin 之前，事务会锁住这条系统角色，并确认除此之外还有至少一名启用且未删除的管理员。否则返回 409「必须保留至少一名有效管理员」。撤掉权限后不需要重新登录，下一请求直接查库。没有增加 `permissionVersion`。
 
 ### 5.4 保护管理员与即时撤权
 
@@ -183,7 +241,7 @@ model RolePermission {
 
 ## 7. API 设计
 
-当前角色资源接口已实现创建、分页列表、详情、更新和未分配删除，未统一包装、无认证/权限 Guard。公开字段为 id/name/code/description/status/sort/createdAt/updatedAt。创建/更新 DTO 见第 5.3.1 节，查询 DTO 见第 5.3.2 节。实际数据库及 HTTP 行为尚未验收。
+当前角色和用户接口已经统一包装，并要求 Access 与第 5.2.1 节的权限码。公开字段仍为 id/name/code/description/status/sort/createdAt/updatedAt。创建/更新 DTO 见第 5.3.1 节，查询 DTO 见第 5.3.2 节。权限 Guard 的 HTTP 验收见第 8 节。角色资源本身的数据库业务验收仍未单独完成。
 
 以下认证、权限、`enabled/isSystem` 与 `data:null` 删除体为完整 RBAC 的目标契约，不代表当前已实现。
 
@@ -262,6 +320,45 @@ curl -i -X PUT http://localhost:3000/api/v1/users/2/roles -H "Authorization: Bea
 - 仓库根目录 `git diff --check`
 
 未执行 Jest、HTTP、数据库连接/写入、迁移、generate 或部署。角色资源 CRUD 代码已实现，运行与数据库行为未验证，不将阶段 06 标为已实现或已验证。证据见 [CHG-20261030-001](../changelog/2026-10-30-001-role-resource-crud.md)。
+
+2026-11-12 权限 Guard 局部检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1。工作目录 `project/`。`tsc --noEmit -p tsconfig.build.json` 退出 0。改动文件的 ESLint 与 Prettier 退出 0。没有新迁移。为加载 Guard，重启了 `pnpm run start`。
+
+临时用户 `verify-guard-a-20261112`、`verify-guard-b-20261112` 和角色 `verify-guard-20261112` 使用文档中的测试密码。库里当时没有 `users:read`，验收脚本插入一条 API 权限，结束后连同角色和两个用户删除。`node --env-file=.env scripts/verify-permission-guard.mjs` 退出码 0，输出不含 token、密码或连接串。脚本未保留。
+
+| 场景 | 结果 |
+| --- | --- |
+| `GET /health/live` 无令牌 | 200，`OK` |
+| `GET /users` 无令牌 | 401，`UNAUTHENTICATED` |
+| 有 `users:read` 的用户 `GET /users` | 200，`OK` |
+| 同一用户 `GET /roles` | 403，`FORBIDDEN` |
+| 无角色用户 `GET /users` | 403，`FORBIDDEN` |
+| 无角色用户 `GET /auth/me` | 200，`OK` |
+| 删除该用户的角色关联后，原 Access 再 `GET /users` | 403，`FORBIDDEN` |
+| 同一 Access `GET /auth/me` | 200，`OK` |
+| 无角色用户 `POST /auth/logout` | 200，`OK` |
+
+未覆盖数据库 503、停用角色或权限、以及装饰器冲突。权限目录种子、分配接口和管理员保护见下一节。阶段 06 不标为已验证。证据见 [CHG-20261112-001](../changelog/2026-11-12-001-permission-guard.md)。
+
+2026-11-12 角色分配局部检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、Prisma 7.10.1。工作目录 `project/`。先用 `migrate diff` 确认只有一条新增 `is_system` 的 SQL，再 `migrate deploy` 应用 `20261112160000_add_role_is_system`。应用后 diff 为空，没有 reset。`tsc --noEmit -p tsconfig.build.json`、改动文件 ESLint 和 Prettier 退出码 0。
+
+`pnpm authz:seed` 连续执行两次，输出都是 `permissions 8 admin-links 8 member-links 0`。第一次把已有且未分配的 `ADMIN` 标成系统角色。重启 `pnpm run start` 后执行验收脚本，退出码 0。临时用户和临时角色已删除，脚本未保留。输出不含 token、密码或连接串。
+
+| 场景 | 结果 |
+| --- | --- |
+| `GET /permissions` 无令牌 | 401，`UNAUTHENTICATED` |
+| 具备 `permissions:read` | 200，目录 8 条，含 `users:read` 和 `users:assign-roles` |
+| 授予自己没有的 `users:delete` | 403，`FORBIDDEN` |
+| 授予自己已有的 `users:read` | 200，角色上只剩这个权限 |
+| 替换系统角色权限、删除系统角色、禁用系统角色 | 均为 409，`CONFLICT` |
+| 修改自己的角色 | 403，`FORBIDDEN` |
+| 自己没有 admin 的全部权限时，把 admin 授给别人 | 403，`FORBIDDEN` |
+| 把带 `users:read` 的角色授给另一用户 | 该用户访问用户列表 200 |
+| 清空该角色权限后，原 Access 再访问用户列表 | 403；`GET /auth/me` 仍为 200 |
+| 只剩一名有效管理员时清空他的角色 | 409，`CONFLICT` |
+| 已有第二名管理员后再清空其中一名 | 200 |
+| 权限 ID 重复 | 400，`VALIDATION_ERROR` |
+
+未覆盖停用用户、已删除用户、数据库 503，以及两名管理员同时互删的并发。验收结束后没有任何用户持有 admin。阶段 06 不标为已验证。证据见 [CHG-20261112-002](../changelog/2026-11-12-002-role-assignment.md)。
 
 ## 9. 常见问题
 

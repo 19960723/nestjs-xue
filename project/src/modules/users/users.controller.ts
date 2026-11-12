@@ -21,9 +21,11 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiForbiddenResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator.js';
 import { User } from './entities/user.entity.js';
 import { UserPageDto } from './dto/user-response.dto.js';
 import { UsersService } from './users.service.js';
@@ -34,16 +36,18 @@ import { SetInitialPasswordDto } from './dto/set-initial-password.dto.js';
 
 /**
  * 用户 HTTP 入口。只做路由和文档，业务规则在 UsersService。
- * 全部路由都要有效 Access，权限区分留给阶段 06。
+ * 有效 Access 之外，每个路由还要具备对应权限。
  */
 @ApiTags('users')
 @ApiBearerAuth()
 @ApiUnauthorizedResponse({ description: '身份无效' })
+@ApiForbiddenResponse({ description: '权限不足' })
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
+  @RequirePermissions('users:create')
   @ApiOperation({ summary: '新增用户' })
   @ApiBody({ type: CreateUserDto })
   @ApiCreatedResponse({ description: '用户创建成功', type: User })
@@ -54,6 +58,7 @@ export class UsersController {
   }
 
   @Get()
+  @RequirePermissions('users:read')
   @ApiOperation({
     summary: '分页查询用户',
     description: '按 ID 降序排列，支持按姓名或邮箱模糊搜索。',
@@ -65,6 +70,7 @@ export class UsersController {
   }
 
   @Post(':id/password')
+  @RequirePermissions('users:update')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '首次设置密码',
@@ -85,6 +91,7 @@ export class UsersController {
   }
 
   @Get(':id')
+  @RequirePermissions('users:read')
   @ApiOperation({ summary: '查询用户详情' })
   @ApiParam({ name: 'id', description: '用户 ID', type: 'integer', example: 1 })
   @ApiOkResponse({ description: '用户详情', type: User })
@@ -94,6 +101,7 @@ export class UsersController {
   }
 
   @Patch(':id')
+  @RequirePermissions('users:update')
   @ApiOperation({ summary: '修改用户资料' })
   @ApiParam({ name: 'id', description: '用户 ID', type: 'integer', example: 1 })
   @ApiBody({ type: UpdateUserDto })
@@ -109,6 +117,7 @@ export class UsersController {
   }
 
   @Delete(':id')
+  @RequirePermissions('users:delete')
   @ApiOperation({
     summary: '删除用户',
     description: '尚未分配角色时物理删除；已分配则返回 409。',

@@ -7,6 +7,7 @@ export const rolePublicSelect = {
   code: true,
   description: true,
   status: true,
+  isSystem: true,
   sort: true,
   createdAt: true,
   updatedAt: true,

@@ -1,6 +1,6 @@
 # 模块化单体架构
 
-更新：2026-11-10。文档状态：已更新；目标方案仍见提议中的 [ADR 0001](../decisions/0001-modular-monolith.md)。当前已有 Health、Users、Roles、Auth 和 Prisma 模块。AuthModule 已注册全局 Access Guard，权限 Guard 仍未实现。阶段 01 及 Swagger 局部历史验收不代表数据库业务已验证。
+更新：2026-11-12。文档状态：已更新；目标方案仍见提议中的 [ADR 0001](../decisions/0001-modular-monolith.md)。当前已有 Health、Users、Roles、Auth、Authorization 和 Prisma 模块。全局入口是 ApiGuard：先校验 Access，再按路由声明查库核对权限。阶段 01 及 Swagger 局部历史验收不代表数据库业务已验证。
 
 ## 当前实现与目标差异
 
@@ -21,7 +21,7 @@ project/src/
 
 当前调用关系为 `UsersController → UsersService → PrismaService`，没有 UsersRepository。Users 与 Roles 查询均使用公开字段 `select`。`CommonModule` 已注册 requestId 中间件、成功包装拦截器和全局异常过滤器。PrismaModule 使用 `@Global()`，UsersModule 不显式导入。认证/权限 Guard 与 Redis 仍未实现。
 
-后文请求链、职责和安全约束均为目标；当前仍是硬删除，Access Guard 已接上，权限 Guard 仍未实现。阶段状态见[导航](../README.md)，具体差异以各阶段文档为准。
+后文请求链、职责和安全约束均为目标；当前仍是硬删除。Access Guard 与权限 Guard 已接上，权限目录种子和分配接口仍未实现。阶段状态见[导航](../README.md)，具体差异以各阶段文档为准。
 
 2026-10-30 局部补充：AppModule 已注册 RolesModule 与 CommonModule。Roles 与 Users 均为 Controller → Service → PrismaService，查询使用公开字段白名单；删除前检查 `user_roles`，已分配 409。成功响应与异常走统一包装和 requestId。PrismaModule 保持 `@Global()`。未新增 Repository、认证或权限 Guard。数据库与 HTTP 运行行为待验收。
 

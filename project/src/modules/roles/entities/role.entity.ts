@@ -32,6 +32,12 @@ export class Role {
   status!: number;
 
   @ApiProperty({
+    description: '是否为系统角色。系统角色不能删除、禁用或修改编码',
+    example: false,
+  })
+  isSystem!: boolean;
+
+  @ApiProperty({
     description: '排序值',
     type: 'integer',
     example: 0,

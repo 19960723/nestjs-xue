@@ -46,6 +46,8 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-11-12-002-role-assignment.md](changelog/2026-11-12-002-role-assignment.md)
+- [doc/changelog/2026-11-12-001-permission-guard.md](changelog/2026-11-12-001-permission-guard.md)
 - [doc/changelog/2026-11-11-001-login-attempt-limit.md](changelog/2026-11-11-001-login-attempt-limit.md)
 - [doc/changelog/2026-11-10-005-session-revoke.md](changelog/2026-11-10-005-session-revoke.md)
 - [doc/changelog/2026-11-10-004-refresh-rotation.md](changelog/2026-11-10-004-refresh-rotation.md)

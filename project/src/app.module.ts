@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import type { DynamicModule, NestApplicationOptions } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { LOG_LEVELS, validateEnv } from './config/env.validation.js';
@@ -7,6 +8,8 @@ import { CommonModule } from './common/common.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { PrismaModule } from './database/prisma/prisma.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { ApiGuard } from './modules/authorization/api.guard.js';
+import { AuthorizationModule } from './modules/authorization/authorization.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { RolesModule } from './modules/roles/roles.module.js';
 
@@ -17,9 +20,11 @@ import { RolesModule } from './modules/roles/roles.module.js';
     HealthModule,
     PrismaModule,
     AuthModule,
+    AuthorizationModule,
     UsersModule,
     RolesModule,
   ],
+  providers: [{ provide: APP_GUARD, useExisting: ApiGuard }],
 })
 export class AppModule {}
 

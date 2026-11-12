@@ -14,6 +14,7 @@ import { rolePublicSelect } from './role.select.js';
  * 角色资料。当前只有 code 唯一，name 可以重复。
  * 写入冲突交给数据库唯一索引，再映射成 409，避免先查再写的并发空窗。
  * 删除前在同一事务里检查是否已分配给用户。
+ * 系统角色不能删除、禁用或修改编码，权限集由种子维护。
  */
 @Injectable()
 export class RolesService {
@@ -98,9 +99,20 @@ export class RolesService {
     return role;
   }
 
-  /** 部分更新。先确认角色存在，编码冲突同样走唯一索引。 */
+  /** 部分更新。先确认角色存在，编码冲突同样走唯一索引。系统角色拒绝改编码和禁用。 */
   async update(id: number, updateRoleDto: UpdateRoleDto) {
-    await this.findOne(id);
+    const current = await this.findOne(id);
+    if (current.isSystem) {
+      if (
+        updateRoleDto.code !== undefined &&
+        updateRoleDto.code !== current.code
+      ) {
+        throw new ConflictException('系统角色不能修改编码');
+      }
+      if (updateRoleDto.status === 0) {
+        throw new ConflictException('系统角色不能禁用');
+      }
+    }
 
     try {
       return await this.prisma.role.update({
@@ -124,11 +136,15 @@ export class RolesService {
     await this.prisma.$transaction(async (tx) => {
       const role = await tx.role.findUnique({
         where: { id },
-        select: { id: true },
+        select: { id: true, isSystem: true },
       });
 
       if (!role) {
         throw new NotFoundException('角色不存在');
+      }
+
+      if (role.isSystem) {
+        throw new ConflictException('系统角色不能删除');
       }
 
       const assignedCount = await tx.userRole.count({

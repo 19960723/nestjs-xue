@@ -6,7 +6,7 @@ import { Public } from '../auth/decorators/public.decorator.js';
 @ApiTags('health')
 @Controller('health')
 export class HealthController {
-  /** 探针不携带身份。全局 Guard 只放行这个方法。 */
+  /** 探针不携带身份。这个方法跳过身份和权限校验。 */
   @Public()
   @Get('live')
   @ApiOperation({ summary: '检查 HTTP 应用存活状态' })
