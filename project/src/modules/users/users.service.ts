@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -16,7 +17,7 @@ import { userPublicSelect } from './user.select.js';
  * 用户资料。创建和更新不接收密码、状态或角色。
  * 查询一律用公开字段，响应里没有密码和删除时间。
  * 首次设密只在密码仍为空、未删除且启用时写入；哈希在更新前计算。
- * 删除仍是硬删除，已分配角色时整段事务失败。
+ * 删除写入 deletedAt，并撤销该用户全部会话。已删除用户按不存在处理。
  */
 @Injectable()
 export class UsersService {
@@ -90,18 +91,21 @@ export class UsersService {
     }
   }
 
-  /** 分页列表。列表和总数放在同一事务里，关键字只匹配用户名、昵称和邮箱。 */
+  /** 分页列表。已删除用户不出现。列表和总数用同一条件，关键字只匹配用户名、昵称和邮箱。 */
   async findAll(query: QueryUserDto) {
     const { page, pageSize, keyword } = query;
-    const where: Prisma.UserWhereInput = keyword
-      ? {
-          OR: [
-            { username: { contains: keyword } },
-            { nickname: { contains: keyword } },
-            { email: { contains: keyword } },
-          ],
-        }
-      : {};
+    const where: Prisma.UserWhereInput = {
+      deletedAt: null,
+      ...(keyword
+        ? {
+            OR: [
+              { username: { contains: keyword } },
+              { nickname: { contains: keyword } },
+              { email: { contains: keyword } },
+            ],
+          }
+        : {}),
+    };
 
     const [list, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
@@ -122,10 +126,10 @@ export class UsersService {
     };
   }
 
-  /** 按主键返回公开资料。当前不按 deletedAt 过滤，响应里也不含删除时间。 */
+  /** 按主键返回未删除用户的公开资料。响应里不含删除时间。 */
   async findOne(id: number) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
+    const user = await this.prisma.user.findFirst({
+      where: { id, deletedAt: null },
       select: userPublicSelect,
     });
 
@@ -194,44 +198,141 @@ export class UsersService {
     throw new ConflictException('密码已设置');
   }
 
-  /** 只改资料。不在这里改密码、状态或角色。 */
-  async update(id: number, dto: UpdateUserDto) {
-    await this.findOne(id);
+  /**
+   * 改启用状态。停用时版本加一并撤销全部会话，旧 Access 下一请求失效。
+   * 启用只改状态，不恢复已撤销的会话。
+   */
+  async updateStatus(actorId: number, id: number, status: number) {
+    if (actorId === id && status === 0) {
+      throw new ForbiddenException('不能停用自己');
+    }
 
-    try {
-      return await this.prisma.user.update({
+    return this.prisma.$transaction(async (tx) => {
+      if (status === 0) {
+        await tx.$queryRaw`
+          SELECT id FROM roles WHERE code = 'admin' AND is_system = 1 FOR UPDATE
+        `;
+      }
+
+      const user = await tx.user.findUnique({
         where: { id },
-        data: this.profileData(dto),
+        select: { id: true, status: true, deletedAt: true },
+      });
+      if (!user || user.deletedAt !== null) {
+        throw new NotFoundException('用户不存在');
+      }
+      if (user.status === status) {
+        return tx.user.findUniqueOrThrow({
+          where: { id },
+          select: userPublicSelect,
+        });
+      }
+
+      if (status === 0) {
+        await this.ensureRemainingAdmin(tx, id);
+        await tx.user.update({
+          where: { id },
+          data: { status: 0, tokenVersion: { increment: 1 } },
+        });
+        await tx.userSession.updateMany({
+          where: { userId: id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      } else {
+        await tx.user.update({
+          where: { id },
+          data: { status: 1 },
+        });
+      }
+
+      return tx.user.findUniqueOrThrow({
+        where: { id },
         select: userPublicSelect,
       });
+    });
+  }
+
+  /** 停用或删除系统管理员前，必须还留有另一名启用且未删除的管理员。 */
+  private async ensureRemainingAdmin(
+    tx: Prisma.TransactionClient,
+    userId: number,
+  ) {
+    const admin = await tx.role.findUnique({
+      where: { code: 'admin' },
+      select: { id: true, isSystem: true, status: true },
+    });
+    if (!admin?.isSystem || admin.status !== 1) {
+      return;
+    }
+    const holds = await tx.userRole.findUnique({
+      where: { userId_roleId: { userId, roleId: admin.id } },
+    });
+    if (!holds) {
+      return;
+    }
+    const others = await tx.userRole.count({
+      where: {
+        roleId: admin.id,
+        userId: { not: userId },
+        user: { deletedAt: null, status: 1 },
+      },
+    });
+    if (others < 1) {
+      throw new ConflictException('必须保留至少一名有效管理员');
+    }
+  }
+
+  /** 只改未删除用户的资料。不在这里改密码、状态或角色。 */
+  async update(id: number, dto: UpdateUserDto) {
+    try {
+      const updated = await this.prisma.user.updateMany({
+        where: { id, deletedAt: null },
+        data: this.profileData(dto),
+      });
+      if (updated.count !== 1) {
+        throw new NotFoundException('用户不存在');
+      }
+      return await this.findOne(id);
     } catch (error: unknown) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
       this.handleWriteError(error);
     }
   }
 
-  /** 未分配角色时物理删除。检查和删除放在同一事务，已分配则 409 并回滚。 */
-  async remove(id: number) {
+  /**
+   * 软删除。写入删除时间，版本加一，并撤销全部未撤销会话。
+   * 不能删除自己，也不能删除最后一名有效管理员。角色关联保留，身份仍被占用。
+   */
+  async remove(actorId: number, id: number): Promise<null> {
+    if (actorId === id) {
+      throw new ForbiddenException('不能删除自己');
+    }
+
     await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT id FROM roles WHERE code = 'admin' AND is_system = 1 FOR UPDATE
+      `;
       const user = await tx.user.findUnique({
         where: { id },
-        select: { id: true },
+        select: { id: true, deletedAt: true },
       });
-
-      if (!user) {
+      if (!user || user.deletedAt !== null) {
         throw new NotFoundException('用户不存在');
       }
 
-      const assignedCount = await tx.userRole.count({
-        where: { userId: id },
-      });
-
-      if (assignedCount > 0) {
-        throw new ConflictException('用户已分配角色，无法删除');
-      }
-
-      await tx.user.delete({
+      await this.ensureRemainingAdmin(tx, id);
+      await tx.user.update({
         where: { id },
+        data: { deletedAt: new Date(), tokenVersion: { increment: 1 } },
+      });
+      await tx.userSession.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
       });
     });
+
+    return null;
   }
 }

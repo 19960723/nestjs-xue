@@ -1,6 +1,6 @@
 # 项目技术文档导航
 
-更新：2026-11-12（Asia/Shanghai）。文档体系：已初始化；应用整体：进行中。阶段 01 有历史本地验收；02～04 已有数据库与 CRUD；03 已落地统一包装/异常/requestId（HTTP 未验收）。本地七份迁移已应用，库与 Schema 一致；已应用 SQL 删除了 `name` 而不是改名。角色资源 CRUD 已落地。已有首次设密、用户名登录、全局 Access Guard、`GET /auth/me`、Refresh 轮换、退出、修改密码和登录失败限制，这些切片已本地 HTTP 验收。权限 Guard、权限目录和角色分配已本地 HTTP 验收。重置未实现，admin 也还没有授给任何账号。
+更新：2026-11-14（Asia/Shanghai）。文档体系：已初始化；应用整体：进行中。阶段 01 有历史本地验收；02～04 已有数据库与 CRUD；03 已落地统一包装/异常/requestId（HTTP 未验收）。本地七份迁移已应用，库与 Schema 一致；已应用 SQL 删除了 `name` 而不是改名。角色资源 CRUD 已落地。已有首次设密、用户名登录、全局 Access Guard、`GET /auth/me`、Refresh 轮换、退出、修改密码和登录失败限制，这些切片已本地 HTTP 验收。权限 Guard、权限目录和角色分配已本地 HTTP 验收。重置未实现，admin 也还没有授给任何账号。
 
 ## 从这里开始
 
@@ -19,7 +19,7 @@
 | 01 | [环境与初始化](01-initialization/implementation.md) | 已更新 | 已验证（本地） | 环境盘点 |
 | 02 | [MySQL与Prisma7](02-database/implementation.md) | 已更新 | 进行中（DATABASE_URL 已统一；本地七份迁移已应用且与 Schema 一致，shadow 与数据库业务未验收） | 01 |
 | 03 | [API规范与可观测性基础](03-api-standards/implementation.md) | 已更新 | 进行中（统一包装/异常/requestId 已实现，HTTP 未验收） | 01/02 |
-| 04 | [用户管理CRUD](04-user-management/implementation.md) | 已更新 | 进行中（资料字段已接入；首次设密已实现；接口需要 Access，数据库业务未验收） | 02/03 |
+| 04 | [用户管理CRUD](04-user-management/implementation.md) | 已更新 | 进行中（资料字段、首次设密、启用/停用和单条软删已实现；批量删除未实现） | 02/03 |
 | 05 | [身份认证与会话](05-authentication/implementation.md) | 已更新 | 进行中（登录、Guard、刷新、退出、修改密码和登录失败限制已本地 HTTP 验收；重置未实现） | 04 |
 | 06 | [RBAC授权](06-authorization/implementation.md) | 已更新 | 进行中（权限 Guard、目录和角色分配已本地 HTTP 验收；admin 尚未授给用户） | 05 |
 | 07 | [Redis缓存与共享限流](07-redis/implementation.md) | 已编写 | 计划中 | 04～06 |

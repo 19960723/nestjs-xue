@@ -1,6 +1,6 @@
 # 阶段 04：用户管理 CRUD
 
-更新：2026-11-10。文档状态：已更新；功能状态：进行中（资料字段已接入；`POST /users/:id/password` 只在密码为空时写入哈希；创建和资料更新仍不接收密码；删除仍为硬删除。2026-11-10 起这些接口需要有效 Access，权限区分仍未实现；数据库与 HTTP 未验收）。前置：[02](../02-database/implementation.md)、[03](../03-api-standards/implementation.md)。本阶段接口仅在隔离本地回环地址开发，05/06完成后才能对外开放。
+更新：2026-11-14。文档状态：已更新；功能状态：进行中（资料字段已接入；`POST /users/:id/password` 只在密码为空时写入哈希；`PATCH /users/:id/status` 可启用或停用；`DELETE /users/:id` 写入 `deletedAt` 并撤销会话。创建和资料更新仍不接收密码和状态。批量删除未实现）。前置：[02](../02-database/implementation.md)、[03](../03-api-standards/implementation.md)。本阶段接口仅在隔离本地回环地址开发，05/06完成后才能对外开放。
 
 ## 1. 阶段目标
 
@@ -39,7 +39,8 @@ Controller处理HTTP，Service负责不变量/事务，UsersRepository负责查�
 2. 2026-10-30 已落实公开 select、显式写入、`ParseIntPipe`、删除前检查 `user_roles`（已分配 409）。2026-10-31 写入字段改为 email/username/nickname/phone/sex/avatar，不写 password。未新增 Repository，删除仍是硬删除。
 3. 新增具体 UsersRepository、UsersModule 显式导入 PrismaModule 后再移除 `@Global()` 仍单独实施；不创建 BaseRepository。
 4. 邮箱最长 100，唯一冲突已按邮箱、用户名、手机号区分。空 PATCH、keyword 长度限制仍待补。
-5. 创建和资料更新都不接收密码。2026-11-02 增加 `POST /users/:id/password`：密码 15～128、不 trim，仅当密码为空、未删除且启用时写入 Argon2id 哈希。已有密码、已禁用返回 409，不存在或已标记删除返回 404。2026-11-09 起，已设密的启用用户可经阶段 05 的用户名登录创建会话；改密和 Guard 仍未实现。软删行为、状态枚举和版本字段另批实施。本地库已有这些资料列，见 [02 第 6 节](../02-database/implementation.md#6-数据库设计)；其他环境未核对。统一包装已在 03 落地，分页字段仍是 `list`。
+5. 创建和资料更新都不接收密码。2026-11-02 增加 `POST /users/:id/password`：密码 15～128、不 trim，仅当密码为空、未删除且启用时写入 Argon2id 哈希。已有密码、已禁用返回 409，不存在或已标记删除返回 404。2026-11-09 起，已设密的启用用户可经阶段 05 的用户名登录创建会话。本地库已有这些资料列，见 [02 第 6 节](../02-database/implementation.md#6-数据库设计)；其他环境未核对。统一包装已在 03 落地，分页字段仍是 `list`。
+6. 2026-11-14 `DELETE /users/:id` 改为软删除。写入 `deletedAt`，`tokenVersion` 加一，并撤销该用户全部未撤销会话。重复删除、详情、列表和资料更新都按用户不存在处理。不能删除自己。删除系统管理员前，必须还留有另一名启用且未删除的管理员。已分配角色不再阻止删除，关联保留。用户名、邮箱和手机号继续占用唯一索引。没有恢复接口，也没有批量删除。
 
 下方 5.1～5.5 是完整阶段目标；只有前置模型/契约具备后才实施。数据库约束、事务和软删验收需隔离环境，目录和 Swagger 整理不能替代这些证据。
 
@@ -104,7 +105,7 @@ return { items, total, page, pageSize };
 
 ## 6. 数据库设计
 
-目标仍复用 02 的完整 User Schema，本阶段不另写一套迁移。Schema 已有可空 `deletedAt`，没有版本字段。删除接口仍是硬删除，不能把“列已存在”当成软删已实现。已应用迁移删除了 `name` 而不是改名为 `nickname`，回填见 [02 第 6 节](../02-database/implementation.md#6-数据库设计)。永久占用 username/email 仍是 ADR0004 的目标策略。版本字段只由 Service 更新。若后续需要恢复用户，必须另定状态/身份冲突/权限恢复规则；本阶段不提供恢复接口。
+目标仍复用 02 的完整 User Schema，本阶段不另写一套迁移。Schema 已有可空 `deletedAt` 和 `tokenVersion`。删除接口写入 `deletedAt` 并递增 `tokenVersion`，不物理删除，也没有新迁移。已应用迁移删除了 `name` 而不是改名为 `nickname`，回填见 [02 第 6 节](../02-database/implementation.md#6-数据库设计)。永久占用 username/email 仍是 ADR0004 的策略，软删除后同样保留。版本字段只由 Service 更新。若后续需要恢复用户，必须另定状态/身份冲突/权限恢复规则；本阶段不提供恢复接口。
 
 ## 7. API 设计
 
@@ -119,9 +120,9 @@ return { items, total, page, pageSize };
 | GET | /users | page=1、pageSize=10（上限100）、keyword 可选 → 200 `{list,total,page,pageSize}` | 400 校验失败 |
 | GET | /users/:id | id → 200 User | 404 用户不存在 |
 | PATCH | /users/:id | id + UpdateUserDto → 200 User | 400 校验失败、404、409 |
-| DELETE | /users/:id | id → 200 统一包装且 `data: null`，未分配角色时硬删除 | 404、409 已分配角色 |
+| DELETE | /users/:id | id → 200 统一包装且 `data: null`，写入 `deletedAt` 并撤销会话 | 403 删除自己、404、409 最后一名有效管理员 |
 
-User 查询使用 `userPublicSelect`：id/username/nickname/avatar/email/phone/sex/status/lastLoginAt/createdAt/updatedAt。username、nickname、avatar、phone、sex、lastLoginAt 可为 null。不返回 password、deletedAt，也不 include roles。创建/更新只写上述资料字段，不写 password，status 用数据库默认值。首次设密在事务外计算 Argon2id 哈希，再用 `password` 为空、`deletedAt` 为空且 `status` 为 1 的条件更新；响应仍是公开字段。列表关键词匹配用户名、昵称或邮箱。路径 ID 使用 `ParseIntPipe`（非法 ID 400）。当前无认证授权；软删行为未实现。数据库约束和并发行为未验收。
+User 查询使用 `userPublicSelect`：id/username/nickname/avatar/email/phone/sex/status/lastLoginAt/createdAt/updatedAt。username、nickname、avatar、phone、sex、lastLoginAt 可为 null。不返回 password、deletedAt，也不 include roles。创建/更新只写上述资料字段，不写 password，status 用数据库默认值。首次设密在事务外计算 Argon2id 哈希，再用 `password` 为空、`deletedAt` 为空且 `status` 为 1 的条件更新；响应仍是公开字段。列表关键词匹配用户名、昵称或邮箱。路径 ID 使用 `ParseIntPipe`（非法 ID 400）。列表、详情和资料更新都跳过已删除用户。删除为软删除。这些接口需要 Access 和对应权限。数据库并发行为未验收。
 
 ### 阶段目标契约（后续实施）
 
@@ -175,6 +176,15 @@ curl -i -X PATCH http://localhost:3000/api/v1/users/1 -H "Authorization: Bearer 
 同日后续按确认的计划接入资料字段。Darwin arm64、Node 24.18.0、pnpm 11.13.1、Prisma 7.10.1、TypeScript 6.0.3；运行目录 `project/`。占位 `DATABASE_URL` 下 `prisma validate` 与 `prisma generate --config prisma7.config.ts` 退出 0。`tsc --noEmit --incremental false -p tsconfig.build.json`、`eslint src/modules/users --max-warnings=0`、`prettier --check src/modules/users` 退出 0。未执行 Jest、HTTP、migrate 或真实连接。不将阶段 04 标为已验证。证据见 [CHG-20261031-007](../changelog/2026-10-31-007-create-user-dto.md)。
 
 2026-11-02 首次设密的静态检查见 [CHG-20261102-002](../changelog/2026-11-02-002-initial-password.md)。未执行 Jest、HTTP 或迁移。不将阶段 04 标为已验证。
+
+2026-11-14 单条软删除本地 HTTP 验收：Darwin arm64、Node 24.18.0、pnpm 11.13.1。工作目录 `project/`。类型检查、用户模块 ESLint 和 Prettier 退出码 0。临时用户和临时角色已物理删除。输出不含 token 或密码。唯一有效管理员状态仍为 1，删除时间仍为空。
+
+- 删除返回 200，`code` 为 `OK`，`data` 为 null。该用户原有角色关联仍在，未撤销会话数为 0。
+- 详情 404，按用户名搜索的列表条数为 0。原 Access 和再次登录都是 401。
+- 再次删除 404，修改资料 404，用原用户名和邮箱重建返回 409。
+- 删除自己返回 403。删除唯一有效管理员返回 409。
+
+未覆盖两名管理员同时互删，也没有批量删除。阶段 04 不标为已验证。证据见 [CHG-20261114-001](../changelog/2026-11-14-001-user-soft-delete.md)。
 
 ## 9. 常见问题
 

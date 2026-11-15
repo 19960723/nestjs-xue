@@ -1,6 +1,6 @@
 # 阶段 06：RBAC 权限系统
 
-更新：2026-11-12。文档状态：已更新；功能状态：进行中（角色资源 CRUD、权限 Guard、权限目录和角色分配已实现，相关切片已本地 HTTP 验收。尚未把 admin 授给任何账号，也没有 permissionVersion）。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
+更新：2026-11-14。文档状态：已更新；功能状态：进行中（角色资源 CRUD、权限 Guard、权限目录和角色分配已实现，相关切片已本地 HTTP 验收。尚未把 admin 授给任何账号，也没有 permissionVersion）。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
 
 ## 1. 阶段目标
 
@@ -44,13 +44,13 @@ Auth Guard先验证身份，PermissionsGuard再从MySQL查未删除ACTIVE用户�
 
 没有把草稿里的主键、`enabled` 或 Restrict 外键覆盖到现有表。只给 `roles` 增加 `is_system`，默认 false。现有普通角色保持 false。
 
-种子是 `project/scripts/seed-permissions.mjs`，命令 `pnpm authz:seed`。它不在启动时执行，也不创建用户或密码。重复执行不新增权限。当前目录是这 8 个 API 权限：`users:create`、`users:read`、`users:update`、`users:delete`、`users:assign-roles`、`roles:read`、`roles:write`、`permissions:read`。`files`、`audit` 和 `users:update-status` 还没有对应接口，不写入目录。
+种子是 `project/scripts/seed-permissions.mjs`，命令 `pnpm authz:seed`。它不在启动时执行，也不创建用户或密码。重复执行不新增权限。当前目录是这 9 个 API 权限：`users:create`、`users:read`、`users:update`、`users:update-status`、`users:delete`、`users:assign-roles`、`roles:read`、`roles:write`、`permissions:read`。`files` 和 `audit` 还没有对应接口，不写入目录。
 
 种子保证两个系统角色：
 
 | 编码 | 权限 |
 | --- | --- |
-| `admin` | 上面 8 个权限。每次种子都把这个角色的权限集改回目录 |
+| `admin` | 上面 9 个权限。每次种子都把这个角色的权限集改回目录 |
 | `member` | 创建时为空，只够访问已登录即可用的接口。之后不覆盖别人加过的权限 |
 
 角色编码在当前库里不区分大小写。2026-11-12 已有未分配、无权限的 `ADMIN`，种子把它标成系统角色并写入 8 个权限，没有改编码，也没有分配给用户。如果同名角色已经有用户或权限，种子会停止。
@@ -92,7 +92,7 @@ remove(@Param('id', ParseIntPipe) id: number) {
 | `users:create` | `POST /users` |
 | `users:read` | `GET /users`、`GET /users/:id` |
 | `users:update` | `PATCH /users/:id`、`POST /users/:id/password` |
-| `users:delete` | `DELETE /users/:id` |
+| `users:delete` | `DELETE /users/:id`（写入 `deletedAt`，不物理删除） |
 | `roles:read` | `GET /roles`、`GET /roles/:id` |
 | `roles:write` | `POST /roles`、`PATCH /roles/:id`、`DELETE /roles/:id` |
 

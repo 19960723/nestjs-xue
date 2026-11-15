@@ -7,6 +7,7 @@ const PERMISSIONS = [
   ['users:create', '新增用户'],
   ['users:read', '查看用户'],
   ['users:update', '修改用户'],
+  ['users:update-status', '启用或停用用户'],
   ['users:delete', '删除用户'],
   ['users:assign-roles', '分配用户角色'],
   ['roles:read', '查看角色'],

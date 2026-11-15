@@ -26,6 +26,8 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator.js';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.js';
 import { User } from './entities/user.entity.js';
 import { UserPageDto } from './dto/user-response.dto.js';
 import { UsersService } from './users.service.js';
@@ -33,6 +35,7 @@ import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { QueryUserDto } from './dto/query-user.dto.js';
 import { SetInitialPasswordDto } from './dto/set-initial-password.dto.js';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto.js';
 
 /**
  * 用户 HTTP 入口。只做路由和文档，业务规则在 UsersService。
@@ -100,6 +103,27 @@ export class UsersController {
     return this.usersService.findOne(id);
   }
 
+  @Patch(':id/status')
+  @RequirePermissions('users:update-status')
+  @ApiOperation({
+    summary: '启用或停用用户',
+    description:
+      '停用后撤销该用户全部会话。不能停用自己，也不能停用最后一名有效管理员。',
+  })
+  @ApiParam({ name: 'id', description: '用户 ID', type: 'integer', example: 1 })
+  @ApiBody({ type: UpdateUserStatusDto })
+  @ApiOkResponse({ description: '更新状态后的用户资料', type: User })
+  @ApiBadRequestResponse({ description: '状态不符合校验规则' })
+  @ApiNotFoundResponse({ description: '用户不存在' })
+  @ApiConflictResponse({ description: '必须保留至少一名有效管理员' })
+  updateStatus(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateUserStatusDto,
+  ) {
+    return this.usersService.updateStatus(actor.id, id, dto.status);
+  }
+
   @Patch(':id')
   @RequirePermissions('users:update')
   @ApiOperation({ summary: '修改用户资料' })
@@ -120,13 +144,17 @@ export class UsersController {
   @RequirePermissions('users:delete')
   @ApiOperation({
     summary: '删除用户',
-    description: '尚未分配角色时物理删除；已分配则返回 409。',
+    description:
+      '写入删除时间并撤销该用户全部会话。不能删除自己，也不能删除最后一名有效管理员。用户名、邮箱和手机号仍被占用。',
   })
   @ApiParam({ name: 'id', description: '用户 ID', type: 'integer', example: 1 })
-  @ApiOkResponse({ description: '用户删除成功，data 为 null' })
+  @ApiOkResponse({ description: '用户已删除，data 为 null' })
   @ApiNotFoundResponse({ description: '用户不存在' })
-  @ApiConflictResponse({ description: '用户已分配角色，无法删除' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.remove(id);
+  @ApiConflictResponse({ description: '必须保留至少一名有效管理员' })
+  remove(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.usersService.remove(actor.id, id);
   }
 }
