@@ -1,6 +1,6 @@
 # 阶段 04：用户管理 CRUD
 
-更新：2026-11-14。文档状态：已更新；功能状态：进行中（资料字段已接入；`POST /users/:id/password` 只在密码为空时写入哈希；`PATCH /users/:id/status` 可启用或停用；`DELETE /users/:id` 写入 `deletedAt` 并撤销会话。创建和资料更新仍不接收密码和状态。批量删除未实现）。前置：[02](../02-database/implementation.md)、[03](../03-api-standards/implementation.md)。本阶段接口仅在隔离本地回环地址开发，05/06完成后才能对外开放。
+更新：2026-11-15。文档状态：已更新；功能状态：进行中（资料字段已接入；`POST /users/:id/password` 只在密码为空时写入哈希；`PATCH /users/:id/status` 可启用或停用；`DELETE /users/:id` 写入 `deletedAt` 并撤销会话。创建和资料更新仍不接收密码和状态。批量删除未实现）。前置：[02](../02-database/implementation.md)、[03](../03-api-standards/implementation.md)。本阶段接口仅在隔离本地回环地址开发，05/06完成后才能对外开放。
 
 ## 1. 阶段目标
 
@@ -29,7 +29,7 @@ Controller处理HTTP，Service负责不变量/事务，UsersRepository负责查�
 
 当前已在 `project/src/modules/users/`，Prisma 源模块在 `src/database/prisma/`。保留已有 Module/Controller/Service、输入 DTO、OpenAPI User；PrismaModule 仍为 `@Global()`，UsersModule 不重复显式导入。未新增 Repository。完整检查结果见本阶段第 8 节。
 
-先核对 02 的当前模型及增量方案、03 的实际与目标契约，再改变字段或删除行为。测试恢复后补有价值的断言，本次不运行测试。当前尚无认证，开发监听 127.0.0.1 且不得发布到公网/共享环境；阶段 05 全局认证、06 权限后才切换目标 API 访问规则。
+先核对 02 的当前模型及增量方案、03 的实际与目标契约，再改变字段或删除行为。测试恢复后补有价值的断言，本次不运行测试。用户和角色接口已经要求 Access 和对应权限。开发仍监听 127.0.0.1，不得发布到公网或共享环境。
 
 ## 5. 详细实施步骤
 
@@ -111,7 +111,7 @@ return { items, total, page, pageSize };
 
 ### 当前代码契约与本次 Swagger 补充（2026-10-23）
 
-现有实现已移动到 `project/src/modules/users/`，与下方阶段目标存在差异。创建必填 `email`（trim、转小写、最长 100）。可选且可空：`username`、`nickname`（出现时 1～50）、`phone`（出现时 1～20）、`sex`（0/1/2）、`avatar`（出现时 1～255）。创建和资料更新不接收 `password`。Update 通过 Swagger 的 PartialType 将资料字段改为可选，`skipNullProperties: false`，可空字段可传 `null` 清空；服务层拒绝 `email: null`。首次设密使用单独的 `POST /users/:id/password`，只接受 15～128 的密码字符串且不 trim。设密成功后，阶段 05 的 `POST /auth/login` 可以登录；改密和 Guard 仍未实现。设密接口目前没有认证。
+现有实现已移动到 `project/src/modules/users/`，与下方阶段目标存在差异。创建必填 `email`（trim、转小写、最长 100）。可选且可空：`username`、`nickname`（出现时 1～50）、`phone`（出现时 1～20）、`sex`（0/1/2）、`avatar`（出现时 1～255）。创建和资料更新不接收 `password`。Update 通过 Swagger 的 PartialType 将资料字段改为可选，`skipNullProperties: false`，可空字段可传 `null` 清空；服务层拒绝 `email: null`。首次设密使用单独的 `POST /users/:id/password`，只接受 15～128 的密码字符串且不 trim。设密成功后可以登录。改密、Access Guard 和权限 Guard 已接入。设密接口需要 `users:update`。
 
 | Method | 路径（前缀 /api/v1） | 当前请求与响应 | 已实现业务异常 |
 | --- | --- | --- | --- |
@@ -186,6 +186,15 @@ curl -i -X PATCH http://localhost:3000/api/v1/users/1 -H "Authorization: Bearer 
 
 未覆盖两名管理员同时互删，也没有批量删除。阶段 04 不标为已验证。证据见 [CHG-20261114-001](../changelog/2026-11-14-001-user-soft-delete.md)。
 
+2026-11-15 把创建、首次设密、登录、分配角色、停用、启用和软删除连成一条路径做本地 HTTP 验收。Darwin arm64、Node 24.18.0、pnpm 11.13.1。工作目录 `project/`。没有改应用代码。临时用户和临时角色已物理删除。输出不含 token 或密码。有效管理员仍为 1 名，状态为 1，删除时间仍为空。本次没有登录、停用或删除该账号。
+
+- 创建返回 201，`code` 为 `OK`。首次设密返回 200。分配只含 `users:read` 的角色返回 200。该用户访问用户列表返回 200。
+- 停用返回 200，`status` 为 0。原 Access 和再次登录都是 401。
+- 启用返回 200，`status` 为 1。停用前的 Access 仍是 401。重新登录后用户列表返回 200。
+- 软删除返回 200，`code` 为 `OK`，`data` 为 null。详情 404。用原用户名和邮箱重建返回 409。
+
+未覆盖批量删除、密码重置，以及两名管理员同时互删。阶段 04 不标为已验证。证据见 [CHG-20261115-001](../changelog/2026-11-15-001-user-chain.md)。
+
 ## 9. 常见问题
 
 | 症状 | 排查与处理 |
@@ -198,4 +207,4 @@ curl -i -X PATCH http://localhost:3000/api/v1/users/1 -H "Authorization: Bearer 
 
 ## 10. 后续扩展
 
-[05](../05-authentication/implementation.md)已实现用户名登录；刷新、退出和改密仍在该阶段后续完成。首次设密不把密码混入资料 DTO。[06](../06-authorization/implementation.md)完成管理权限与管理员保护；08补事务审计。批量导入、硬删除、身份复用和全模糊检索均需单独业务需求。
+[05](../05-authentication/implementation.md)已实现登录、刷新、退出、改密和登录失败限制；密码重置未实现。首次设密不把密码混入资料 DTO。[06](../06-authorization/implementation.md)已接入权限 Guard、目录、角色分配和管理员保护；没有 permissionVersion。08补事务审计。批量导入、硬删除、身份复用和全模糊检索均需单独业务需求。

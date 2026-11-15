@@ -46,6 +46,7 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-11-15-001-user-chain.md](changelog/2026-11-15-001-user-chain.md)
 - [doc/changelog/2026-11-14-001-user-soft-delete.md](changelog/2026-11-14-001-user-soft-delete.md)
 - [doc/changelog/2026-11-12-003-user-status.md](changelog/2026-11-12-003-user-status.md)
 - [doc/changelog/2026-11-12-002-role-assignment.md](changelog/2026-11-12-002-role-assignment.md)

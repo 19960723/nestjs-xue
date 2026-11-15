@@ -1,6 +1,6 @@
 # 阶段 06：RBAC 权限系统
 
-更新：2026-11-14。文档状态：已更新；功能状态：进行中（角色资源 CRUD、权限 Guard、权限目录和角色分配已实现，相关切片已本地 HTTP 验收。尚未把 admin 授给任何账号，也没有 permissionVersion）。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
+更新：2026-11-15。文档状态：已更新；功能状态：进行中（角色资源 CRUD、权限 Guard、权限目录和角色分配已实现，相关切片已本地 HTTP 验收。已有一名有效管理员。没有 permissionVersion）。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
 
 ## 1. 阶段目标
 
@@ -55,7 +55,7 @@ Auth Guard先验证身份，PermissionsGuard再从MySQL查未删除ACTIVE用户�
 
 角色编码在当前库里不区分大小写。2026-11-12 已有未分配、无权限的 `ADMIN`，种子把它标成系统角色并写入 8 个权限，没有改编码，也没有分配给用户。如果同名角色已经有用户或权限，种子会停止。
 
-第一次把 admin 交给已有账号用 `node --env-file=.env scripts/grant-admin.mjs <username>`。它只给启用且未删除的用户补上 admin 关联，不创建账号，也不改密码。本次没有执行这条命令，所以现在没有任何用户持有 admin。
+第一次把 admin 交给已有账号用 `node --env-file=.env scripts/grant-admin.mjs <username>`。它只给启用且未删除的用户补上 admin 关联，不创建账号，也不改密码。该命令已经执行过，现在有一名启用且未删除的用户持有系统 admin。
 
 ### 5.2 定义授权元数据与Guard顺序
 

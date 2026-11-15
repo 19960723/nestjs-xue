@@ -1,6 +1,6 @@
 # 阶段 05：身份认证系统
 
-更新：2026-11-11。文档状态：已更新；功能状态：进行中（已有 Argon2id 哈希、首次设密、用户名登录、全局 Access Guard、`GET /auth/me`、Refresh 轮换、当前退出、全部退出、修改密码和登录失败限制。这些切片已本地 HTTP 验收。重置未实现，阶段整体未完成）。前置：[04](../04-user-management/implementation.md)及01的Jest工具。安全策略见 [ADR0004](../decisions/0004-security-and-data-policy.md)。默认命令在project/。
+更新：2026-11-15。文档状态：已更新；功能状态：进行中（已有 Argon2id 哈希、首次设密、用户名登录、全局 Access Guard、`GET /auth/me`、Refresh 轮换、当前退出、全部退出、修改密码和登录失败限制。这些切片已本地 HTTP 验收。重置未实现，阶段整体未完成）。前置：[04](../04-user-management/implementation.md)及01的Jest工具。安全策略见 [ADR0004](../decisions/0004-security-and-data-policy.md)。默认命令在project/。
 
 ## 1. 阶段目标
 
@@ -345,4 +345,4 @@ curl -i -X POST http://localhost:3000/api/v1/auth/refresh -H 'Content-Type: appl
 
 ## 10. 后续扩展
 
-[06](../06-authorization/implementation.md)的权限 Guard、权限目录和角色分配已接入。admin 尚未授给任何账号。[07](../07-redis/implementation.md)共享限流；08清理到期会话/桶。MFA、SSO、Cookie模式、设备列表、异常登录检测按需求单独评审。
+[06](../06-authorization/implementation.md)的权限 Guard、权限目录和角色分配已接入。已有一名启用且未删除的用户持有系统 admin。[07](../07-redis/implementation.md)共享限流；08清理到期会话/桶。MFA、SSO、Cookie模式、设备列表、异常登录检测按需求单独评审。
