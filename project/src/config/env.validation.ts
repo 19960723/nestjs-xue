@@ -34,6 +34,7 @@ export interface Environment extends Record<string, unknown> {
   AUTH_ACCOUNT_WINDOW_SECONDS: number;
   AUTH_IP_MAX_ATTEMPTS: number;
   AUTH_IP_WINDOW_SECONDS: number;
+  REDIS_URL: string;
 }
 
 const MIN_JWT_SECRET_LENGTH = 32;
@@ -232,6 +233,7 @@ export function validateEnv(env: Record<string, unknown>): Environment {
     AUTH_IP_WINDOW_DEFAULT,
     AUTH_IP_WINDOW_MAX,
   );
+  const redisUrl = requireRedisUrl(env.REDIS_URL);
 
   return {
     NODE_ENV: nodeEnv,
@@ -262,5 +264,26 @@ export function validateEnv(env: Record<string, unknown>): Environment {
     AUTH_ACCOUNT_WINDOW_SECONDS: accountWindowSeconds,
     AUTH_IP_MAX_ATTEMPTS: ipMaxAttempts,
     AUTH_IP_WINDOW_SECONDS: ipWindowSeconds,
+    REDIS_URL: redisUrl,
   };
+}
+
+/** 只接受 redis 或 rediss。错误文案不回显地址，避免带出密码。 */
+function requireRedisUrl(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error('REDIS_URL 必填');
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value.trim());
+  } catch {
+    throw new Error('REDIS_URL 格式无效');
+  }
+  if (parsed.protocol !== 'redis:' && parsed.protocol !== 'rediss:') {
+    throw new Error('REDIS_URL 协议必须是 redis 或 rediss');
+  }
+  if (parsed.hostname === '') {
+    throw new Error('REDIS_URL 缺少主机');
+  }
+  return value.trim();
 }

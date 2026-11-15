@@ -22,7 +22,7 @@
 | 04 | [用户管理CRUD](04-user-management/implementation.md) | 已更新 | 进行中（资料字段、首次设密、启用/停用和单条软删已实现；批量删除未实现） | 02/03 |
 | 05 | [身份认证与会话](05-authentication/implementation.md) | 已更新 | 进行中（登录、Guard、刷新、退出、修改密码和登录失败限制已本地 HTTP 验收；重置未实现） | 04 |
 | 06 | [RBAC授权](06-authorization/implementation.md) | 已更新 | 进行中（权限 Guard、目录和角色分配已本地 HTTP 验收；已有一名有效管理员；permissionVersion 未做） | 05 |
-| 07 | [Redis缓存与共享限流](07-redis/implementation.md) | 已编写 | 计划中 | 04～06 |
+| 07 | [Redis缓存与共享限流](07-redis/implementation.md) | 已更新 | 进行中（单一客户端和登录来源限流已接入；展示缓存未做） | 04～06 |
 | 08 | [公共能力与审计](08-common/implementation.md) | 已编写 | 计划中 | 02～07 |
 | 09 | [测试质量与CI](09-testing/implementation.md) | 已更新 | 计划中（最小工具已在01验证，当前测试执行暂缓） | 01～08 |
 | 10 | [部署与运维](10-deployment/implementation.md) | 已编写 | 计划中 | 07～09 |

@@ -1,6 +1,6 @@
 # 阶段 07：Redis 与缓存
 
-更新：2026-10-21。文档状态：已编写；功能状态：计划中。前置：[04](../04-user-management/implementation.md)～[06](../06-authorization/implementation.md)。命令默认project/。
+更新：2026-11-15。文档状态：已更新；功能状态：进行中（已接入单一 Redis 客户端，登录来源地址先计入 Redis 固定窗口。展示缓存、全局 Throttler 和故障演练未做）。前置：[04](../04-user-management/implementation.md)～[06](../06-authorization/implementation.md)。命令默认project/。
 
 ## 1. 阶段目标
 
@@ -36,6 +36,8 @@ pnpm add --save-exact ioredis@6.0.0 @nestjs/throttler@6.7.1
 ## 5. 详细实施步骤
 
 ### 5.1 创建连接与生命周期
+
+2026-11-15 已接入。客户端只在 `project/src/infrastructure/redis/redis.service.ts`。`RedisModule` 由认证模块导入，其他业务不创建自己的连接。启动时连接并 PING，进程关闭时限时 quit。连接超时 2 秒，命令超时 1 秒，单次命令最多再试 1 次，关闭离线排队。日志不打印 `REDIS_URL`。
 
 - 目标：每进程一个可管理客户端。
 - 文件：新建 `project/src/infrastructure/redis/{redis.module,redis.service}.ts`、修改env校验/example和AppModule。
@@ -76,6 +78,8 @@ async setJson(key: string, value: unknown, ttlSeconds: number): Promise<void> {
 - 预期/验证：缓存故障不影响认证权限正确性；失效失败有可观察记录，旧展示值最终过期。
 
 ### 5.4 实现共享限流storage
+
+2026-11-15 只做了登录来源地址这一条。`LoginLimitService` 调用 `RedisService.consumeWindow`，键是 HMAC 和时间桶，不保存 IP 原文。次数和过期在同一次脚本里写入。超过 `AUTH_IP_MAX_ATTEMPTS` 返回 429。Redis 故障返回 503，不继续核对密码。账号桶仍在 MySQL。没有接入 `@nestjs/throttler`，也没有给普通路由加全局限流。
 
 - 目标：同一用户/IP跨副本共享配额。
 - 文件：新建 `project/src/infrastructure/redis/redis-throttler.storage.ts`、Lua脚本文件；全局注册ThrottlerGuard/对应storage，修改认证端点策略。
@@ -151,7 +155,7 @@ Node storage调用 `redis.eval(script, 1, scopedKey, ttl, limit, blockDuration)`
 - [ ] 两实例共享限流，毫秒/秒、封禁TTL和Retry-After正确。
 - [ ] 缓存/安全依赖故障策略、live/ready状态符合约定。
 
-验收记录：未执行；Redis服务/镜像实际版本待实施确认。
+验收记录：未把阶段标为已验证。2026-11-15 本地启动日志出现 `Redis 连接成功`。一次不存在用户的登录返回 401，`code` 为 `UNAUTHENTICATED`。未做两实例并发，也没有停掉 Redis 演练故障。展示缓存未做。
 
 ## 9. 常见问题
 

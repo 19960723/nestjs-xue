@@ -46,6 +46,7 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-11-15-003-redis.md](changelog/2026-11-15-003-redis.md)
 - [doc/changelog/2026-11-15-002-auth-edge.md](changelog/2026-11-15-002-auth-edge.md)
 - [doc/changelog/2026-11-15-001-user-chain.md](changelog/2026-11-15-001-user-chain.md)
 - [doc/changelog/2026-11-14-001-user-soft-delete.md](changelog/2026-11-14-001-user-soft-delete.md)

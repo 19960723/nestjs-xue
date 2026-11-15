@@ -13,6 +13,7 @@ function envWithDb(
     JWT_ISSUER: 'init-xue',
     JWT_AUDIENCE: 'init-xue-api',
     AUTH_LIMIT_HMAC_SECRET: VALID_JWT_SECRET,
+    REDIS_URL: 'redis://127.0.0.1:6379',
     ...overrides,
   };
 }
@@ -38,6 +39,7 @@ describe('validateEnv', () => {
       AUTH_ACCOUNT_WINDOW_SECONDS: 900,
       AUTH_IP_MAX_ATTEMPTS: 60,
       AUTH_IP_WINDOW_SECONDS: 60,
+      REDIS_URL: 'redis://127.0.0.1:6379',
     });
   });
 
@@ -127,6 +129,19 @@ describe('validateEnv', () => {
           'postgres://app_user:secret-marker@127.0.0.1:5432/init_xue_dev',
       }),
     ).toThrow(/^DATABASE_URL 协议必须是 mysql$/);
+  });
+
+  it('rejects a REDIS_URL that is missing or uses another protocol', () => {
+    expect(() => validateEnv(envWithDb({ REDIS_URL: '' }))).toThrow(
+      'REDIS_URL 必填',
+    );
+    expect(() =>
+      validateEnv(
+        envWithDb({
+          REDIS_URL: 'http://user:secret-marker@127.0.0.1:6379',
+        }),
+      ),
+    ).toThrow(/^REDIS_URL 协议必须是 redis 或 rediss$/);
   });
 
   it.each([

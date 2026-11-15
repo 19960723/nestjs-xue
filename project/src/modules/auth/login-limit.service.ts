@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AttemptLimitedException } from '../../common/exceptions/attempt-limited.exception.js';
 import { PrismaService } from '../../database/prisma/prisma.service.js';
+import { RedisService } from '../../infrastructure/redis/redis.service.js';
 import { isDatabaseError } from './database-error.js';
 
 interface AttemptWindow {
@@ -17,13 +18,15 @@ interface AttemptWindow {
 /**
  * 登录前占用固定窗口次数。账号和来源地址各一个桶，键是 HMAC，不保存原文。
  * 次数在密码哈希之前增加并提交。超过上限返回 429，成功登录也不把次数减回去。
- * 数据库故障返回 503，不继续核对密码。
+ * 来源地址先计入 Redis，再计入 MySQL。Redis 故障返回 503，不继续核对密码。
+ * 数据库故障同样返回 503。
  */
 @Injectable()
 export class LoginLimitService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly redis: RedisService,
   ) {}
 
   async reserve(username: string, ip: string): Promise<void> {
@@ -42,6 +45,17 @@ export class LoginLimitService {
       this.config.getOrThrow<number>('AUTH_IP_WINDOW_SECONDS'),
       this.config.getOrThrow<number>('AUTH_IP_MAX_ATTEMPTS'),
     );
+
+    const shared = await this.redis.consumeWindow(
+      'auth:login-ip',
+      source.keyHash,
+      Math.floor(source.windowStart.getTime() / 1000),
+      source.maxAttempts,
+      this.config.getOrThrow<number>('AUTH_IP_WINDOW_SECONDS'),
+    );
+    if (shared.count > source.maxAttempts) {
+      throw new AttemptLimitedException(shared.retryAfter);
+    }
 
     try {
       const usage = await this.prisma.$transaction(async (tx) => {

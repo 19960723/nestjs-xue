@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
+import { RedisModule } from '../../infrastructure/redis/redis.module.js';
 import { LoginLimitService } from './login-limit.service.js';
 import { PasswordService } from './password.service.js';
 
@@ -14,6 +15,7 @@ import { PasswordService } from './password.service.js';
  */
 @Module({
   imports: [
+    RedisModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
