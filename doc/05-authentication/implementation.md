@@ -271,7 +271,16 @@ curl -i -X POST http://localhost:3000/api/v1/auth/refresh -H 'Content-Type: appl
 - [ ] 失败计数并发安全；公开注册/reset开关受控，未知账号提示一致。
 - [ ] 重置单次/到期/竞争和可信交付验收；未配置渠道时保持关闭且未完成。
 
-验收记录：登录、Guard、刷新、退出、修改密码和登录失败限制已本地 HTTP 验收，证据见下方记录和 [CHG-20261110-003](../changelog/2026-11-10-003-access-guard-http.md) 至 [CHG-20261111-001](../changelog/2026-11-11-001-login-attempt-limit.md)。过期 token、错误算法、数据库 503、禁用和软删用户尚未覆盖。重置未实现。密码重置交付渠道与浏览器 token 存储方案待产品确认。阶段 05 整体仍为进行中。
+验收记录：登录、Guard、刷新、退出、修改密码和登录失败限制已本地 HTTP 验收，证据见下方记录和 [CHG-20261110-003](../changelog/2026-11-10-003-access-guard-http.md) 至 [CHG-20261111-001](../changelog/2026-11-11-001-login-attempt-limit.md)。过期 Access、错误算法和会话表不可用已于 2026-11-15 覆盖。禁用和软删已在后续用户切片覆盖。重置未实现。密码重置交付渠道与浏览器 token 存储方案待产品确认。阶段 05 整体仍为进行中。
+
+2026-11-15 补过期令牌、错误算法和数据库故障。Darwin arm64、Node 24.18.0、pnpm 11.13.1。工作目录 `project/`。没有改应用代码。临时用户已物理删除。输出不含 token 或密码。验收把 `sys_user_session` 改名一次，让 Guard 查会话失败；该请求结束后表名已改回。
+
+- 有效 Access 访问 `GET /auth/me` 返回 200，`code` 为 `OK`。
+- 同一身份、过期时间在过去的 HS256 令牌返回 401，`code` 为 `UNAUTHENTICATED`。
+- 用 HS512 签名的令牌返回 401，`code` 为 `UNAUTHENTICATED`。
+- 会话表不可用时，原来的有效 Access 返回 503，`code` 为 `SERVICE_UNAVAILABLE`。表名改回后，同一 Access 再次返回 200。
+
+未覆盖错误 issuer、audience、缺 `sid`、数据库在刷新或登录计数中的故障，以及重置。阶段 05 不标为已验证。证据见 [CHG-20261115-002](../changelog/2026-11-15-002-auth-edge.md)。
 
 2026-10-31 UserSession 仅做 Schema 检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、Prisma 7.10.1；运行目录 `project/`。占位 `DATABASE_URL` 下 `prisma validate` 与 `prisma generate --config prisma7.config.ts` 退出 0。未改业务模块，未执行 tsc、Jest、migrate 或真实连接。证据见 [CHG-20261031-006](../changelog/2026-10-31-006-user-session.md)。
 
