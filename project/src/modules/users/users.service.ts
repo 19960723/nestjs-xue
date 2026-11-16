@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../database/prisma/prisma.service.js';
+import { RedisService } from '../../infrastructure/redis/redis.service.js';
 import { PasswordService } from '../auth/password.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
@@ -18,12 +19,14 @@ import { userPublicSelect } from './user.select.js';
  * 查询一律用公开字段，响应里没有密码和删除时间。
  * 首次设密只在密码仍为空、未删除且启用时写入；哈希在更新前计算。
  * 删除写入 deletedAt，并撤销该用户全部会话。已删除用户按不存在处理。
+ * 详情在确认未删除后可读短时展示缓存。资料、状态、设密和删除提交后再删缓存。
  */
 @Injectable()
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
+    private readonly redis: RedisService,
   ) {}
 
   /** 把唯一索引冲突换成字段文案。认不出字段时仍返回 409，不把 Prisma 内部信息交给客户端。 */
@@ -126,23 +129,64 @@ export class UsersService {
     };
   }
 
-  /** 按主键返回未删除用户的公开资料。响应里不含删除时间。 */
+  /**
+   * 按主键返回未删除用户的公开资料。响应里不含删除时间。
+   * 先用 MySQL 确认未删除，已删用户不能从缓存里回来。
+   * 展示缓存 60 秒再加 0～15 秒。它只给详情展示用，登录和权限不读。
+   */
   async findOne(id: number) {
-    const user = await this.prisma.user.findFirst({
+    const visible = await this.prisma.user.findFirst({
       where: { id, deletedAt: null },
-      select: userPublicSelect,
+      select: { id: true },
     });
-
-    if (!user) {
+    if (!visible) {
+      await this.redis.forget('users:profile', id);
       throw new NotFoundException('用户不存在');
     }
 
+    const cached = parseProfile(
+      await this.redis.readJson('users:profile', id),
+      id,
+    );
+    if (cached) {
+      return cached;
+    }
+
+    const user = await this.loadPublic(id);
+    if (!user) {
+      await this.redis.forget('users:profile', id);
+      throw new NotFoundException('用户不存在');
+    }
+    await this.redis.writeJson(
+      'users:profile',
+      id,
+      user,
+      60 + Math.floor(Math.random() * 16),
+    );
+    return user;
+  }
+
+  /** 直接读公开资料，给写操作返回最新值，不走展示缓存。 */
+  private async loadPublic(id: number) {
+    return this.prisma.user.findFirst({
+      where: { id, deletedAt: null },
+      select: userPublicSelect,
+    });
+  }
+
+  /** 写操作提交后的回读。不走缓存，避免刚删掉的旧资料又被返回。 */
+  private async requirePublic(id: number) {
+    const user = await this.loadPublic(id);
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
     return user;
   }
 
   /**
    * 条件更新写入第一份密码。条件里同时要求密码为空、未删除且启用，避免先查再改的空窗。
    * 没写上时再读状态，区分不存在、已禁用和已设密；读和重试之间仍可能被别人设密。
+   * 写入成功后删除展示缓存，返回值改从 MySQL 读。
    */
   async setInitialPassword(id: number, password: string) {
     const passwordHash = await this.passwords.hash(password);
@@ -157,7 +201,8 @@ export class UsersService {
     });
 
     if (updated.count === 1) {
-      return this.findOne(id);
+      await this.redis.forget('users:profile', id);
+      return this.requirePublic(id);
     }
 
     const existing = await this.prisma.user.findUnique({
@@ -192,7 +237,8 @@ export class UsersService {
     });
 
     if (retried.count === 1) {
-      return this.findOne(id);
+      await this.redis.forget('users:profile', id);
+      return this.requirePublic(id);
     }
 
     throw new ConflictException('密码已设置');
@@ -200,56 +246,65 @@ export class UsersService {
 
   /**
    * 改启用状态。停用时版本加一并撤销全部会话，旧 Access 下一请求失效。
-   * 启用只改状态，不恢复已撤销的会话。
+   * 启用只改状态，不恢复已撤销的会话。事务提交后再删展示缓存；用户已不存在时也删。
    */
   async updateStatus(actorId: number, id: number, status: number) {
     if (actorId === id && status === 0) {
       throw new ForbiddenException('不能停用自己');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      if (status === 0) {
-        await tx.$queryRaw`
-          SELECT id FROM roles WHERE code = 'admin' AND is_system = 1 FOR UPDATE
-        `;
-      }
+    try {
+      const user = await this.prisma.$transaction(async (tx) => {
+        if (status === 0) {
+          await tx.$queryRaw`
+            SELECT id FROM roles WHERE code = 'admin' AND is_system = 1 FOR UPDATE
+          `;
+        }
 
-      const user = await tx.user.findUnique({
-        where: { id },
-        select: { id: true, status: true, deletedAt: true },
-      });
-      if (!user || user.deletedAt !== null) {
-        throw new NotFoundException('用户不存在');
-      }
-      if (user.status === status) {
+        const current = await tx.user.findUnique({
+          where: { id },
+          select: { id: true, status: true, deletedAt: true },
+        });
+        if (!current || current.deletedAt !== null) {
+          throw new NotFoundException('用户不存在');
+        }
+        if (current.status === status) {
+          return tx.user.findUniqueOrThrow({
+            where: { id },
+            select: userPublicSelect,
+          });
+        }
+
+        if (status === 0) {
+          await this.ensureRemainingAdmin(tx, id);
+          await tx.user.update({
+            where: { id },
+            data: { status: 0, tokenVersion: { increment: 1 } },
+          });
+          await tx.userSession.updateMany({
+            where: { userId: id, revokedAt: null },
+            data: { revokedAt: new Date() },
+          });
+        } else {
+          await tx.user.update({
+            where: { id },
+            data: { status: 1 },
+          });
+        }
+
         return tx.user.findUniqueOrThrow({
           where: { id },
           select: userPublicSelect,
         });
-      }
-
-      if (status === 0) {
-        await this.ensureRemainingAdmin(tx, id);
-        await tx.user.update({
-          where: { id },
-          data: { status: 0, tokenVersion: { increment: 1 } },
-        });
-        await tx.userSession.updateMany({
-          where: { userId: id, revokedAt: null },
-          data: { revokedAt: new Date() },
-        });
-      } else {
-        await tx.user.update({
-          where: { id },
-          data: { status: 1 },
-        });
-      }
-
-      return tx.user.findUniqueOrThrow({
-        where: { id },
-        select: userPublicSelect,
       });
-    });
+      await this.redis.forget('users:profile', id);
+      return user;
+    } catch (error: unknown) {
+      if (error instanceof NotFoundException) {
+        await this.redis.forget('users:profile', id);
+      }
+      throw error;
+    }
   }
 
   /** 停用或删除系统管理员前，必须还留有另一名启用且未删除的管理员。 */
@@ -282,7 +337,7 @@ export class UsersService {
     }
   }
 
-  /** 只改未删除用户的资料。不在这里改密码、状态或角色。 */
+  /** 只改未删除用户的资料。不在这里改密码、状态或角色。提交成功或用户已不存在时删除展示缓存。 */
   async update(id: number, dto: UpdateUserDto) {
     try {
       const updated = await this.prisma.user.updateMany({
@@ -290,9 +345,11 @@ export class UsersService {
         data: this.profileData(dto),
       });
       if (updated.count !== 1) {
+        await this.redis.forget('users:profile', id);
         throw new NotFoundException('用户不存在');
       }
-      return await this.findOne(id);
+      await this.redis.forget('users:profile', id);
+      return this.requirePublic(id);
     } catch (error: unknown) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -304,6 +361,7 @@ export class UsersService {
   /**
    * 软删除。写入删除时间，版本加一，并撤销全部未撤销会话。
    * 不能删除自己，也不能删除最后一名有效管理员。角色关联保留，身份仍被占用。
+   * 事务提交后再删展示缓存。删除失败不回滚数据库，剩下的值靠有效期消失。
    */
   async remove(actorId: number, id: number): Promise<null> {
     if (actorId === id) {
@@ -333,6 +391,132 @@ export class UsersService {
       });
     });
 
+    await this.redis.forget('users:profile', id);
     return null;
   }
+}
+
+/** 与 userPublicSelect 一一对应。多字段或少字段都当缓存损坏。 */
+const PROFILE_FIELDS = [
+  'id',
+  'username',
+  'nickname',
+  'avatar',
+  'email',
+  'phone',
+  'sex',
+  'status',
+  'lastLoginAt',
+  'createdAt',
+  'updatedAt',
+] as const;
+
+type PublicUser = {
+  id: number;
+  username: string | null;
+  nickname: string | null;
+  avatar: string | null;
+  email: string;
+  phone: string | null;
+  sex: number | null;
+  status: number;
+  lastLoginAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date | null;
+};
+
+/** 缓存是外部数据。字段、类型或日期对不上就当未命中，不能按未知结构直接返回。 */
+function parseProfile(value: unknown, id: number): PublicUser | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (
+    keys.length !== PROFILE_FIELDS.length ||
+    PROFILE_FIELDS.some((field) => !Object.hasOwn(record, field))
+  ) {
+    return null;
+  }
+  if (record.id !== id) {
+    return null;
+  }
+  const username = optionalText(record.username);
+  const nickname = optionalText(record.nickname);
+  const avatar = optionalText(record.avatar);
+  const phone = optionalText(record.phone);
+  const email = record.email;
+  const sex = optionalInteger(record.sex);
+  const status = record.status;
+  const lastLoginAt = optionalDate(record.lastLoginAt);
+  const createdAt = requiredDate(record.createdAt);
+  const updatedAt = optionalDate(record.updatedAt);
+  if (
+    username === undefined ||
+    nickname === undefined ||
+    avatar === undefined ||
+    phone === undefined ||
+    typeof email !== 'string' ||
+    email.length < 1 ||
+    email.length > 100 ||
+    sex === undefined ||
+    (status !== 0 && status !== 1) ||
+    lastLoginAt === undefined ||
+    createdAt === undefined ||
+    updatedAt === undefined
+  ) {
+    return null;
+  }
+  return {
+    id,
+    username,
+    nickname,
+    avatar,
+    email,
+    phone,
+    sex,
+    status,
+    lastLoginAt,
+    createdAt,
+    updatedAt,
+  };
+}
+
+/** undefined 表示类型不对，null 表示数据库里的空值。类型不对时整份缓存作废。 */
+function optionalText(value: unknown): string | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value !== 'string' || value.length > 255) {
+    return undefined;
+  }
+  return value;
+}
+
+function optionalInteger(value: unknown): number | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value !== 'number' || !Number.isSafeInteger(value)) {
+    return undefined;
+  }
+  return value;
+}
+
+function optionalDate(value: unknown): Date | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return requiredDate(value);
+}
+
+function requiredDate(value: unknown): Date | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const time = Date.parse(value);
+  if (Number.isNaN(time)) {
+    return undefined;
+  }
+  return new Date(time);
 }

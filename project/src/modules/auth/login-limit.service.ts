@@ -29,6 +29,10 @@ export class LoginLimitService {
     private readonly redis: RedisService,
   ) {}
 
+  /**
+   * 先占用 Redis 的来源窗口。超过上限就不再写 MySQL，也不核对密码。
+   * Redis 失败由 RedisService 抛 503，这里不接住。
+   */
   async reserve(username: string, ip: string): Promise<void> {
     const now = new Date();
     const account = this.windowFor(

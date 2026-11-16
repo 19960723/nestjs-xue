@@ -12,6 +12,7 @@ import { PasswordService } from './password.service.js';
  * 认证模块。JwtModule 只提供 HS256 和已校验的 issuer、audience、有效期。
  * JwtAuthGuard 由授权模块包进唯一的全局 Guard，这里只导出它。
  * 导出 PasswordService 给首次设密使用。
+ * 导入 RedisModule 只给登录来源限流，不在这里缓存用户或会话。
  */
 @Module({
   imports: [
