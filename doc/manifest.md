@@ -46,6 +46,7 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-11-16-009-file-upload.md](changelog/2026-11-16-009-file-upload.md)
 - [doc/changelog/2026-11-16-008-cleanup.md](changelog/2026-11-16-008-cleanup.md)
 - [doc/changelog/2026-11-16-007-security-rejection.md](changelog/2026-11-16-007-security-rejection.md)
 - [doc/changelog/2026-11-16-006-audit-query.md](changelog/2026-11-16-006-audit-query.md)

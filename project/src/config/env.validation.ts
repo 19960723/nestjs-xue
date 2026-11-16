@@ -1,4 +1,5 @@
 import type { LogLevel } from '@nestjs/common';
+import path from 'node:path';
 import { parseMysqlDatabaseUrl } from '../database/prisma/database-options.js';
 
 // 同时用于配置枚举校验和启动日志过滤，顺序为从严重到详细。
@@ -43,6 +44,12 @@ export interface Environment extends Record<string, unknown> {
   TRUSTED_PROXY: number | null;
   /** 为 true 时本进程每小时清理一批过期数据。默认关闭。 */
   SCHEDULE_ENABLED: boolean;
+  /** 为 true 时才注册上传和下载路由。默认关闭。 */
+  UPLOAD_ENABLED: boolean;
+  /** 单个上传文件的字节上限。 */
+  UPLOAD_MAX_BYTES: number;
+  /** 上传根目录。关闭上传时为 null。 */
+  UPLOAD_ROOT: string | null;
 }
 
 const MIN_JWT_SECRET_LENGTH = 32;
@@ -64,6 +71,8 @@ const JSON_BODY_LIMIT_DEFAULT = 1_048_576;
 const JSON_BODY_LIMIT_MIN = 1024;
 const JSON_BODY_LIMIT_MAX = 1_048_576;
 const CORS_ORIGIN_LIMIT = 20;
+const UPLOAD_MAX_BYTES_DEFAULT = 5_242_880;
+const UPLOAD_MAX_BYTES_LIMIT = 5_242_880;
 
 const REMOVED_DATABASE_KEYS = [
   'DATABASE_HOST',
@@ -264,6 +273,13 @@ export function validateEnv(env: Record<string, unknown>): Environment {
       'true',
       'false',
     ]) === 'true';
+  const uploadEnabled =
+    enumValue('UPLOAD_ENABLED', env.UPLOAD_ENABLED ?? 'false', [
+      'true',
+      'false',
+    ]) === 'true';
+  const uploadMaxBytes = requireUploadMax(env.UPLOAD_MAX_BYTES);
+  const uploadRoot = requireUploadRoot(env.UPLOAD_ROOT, uploadEnabled);
 
   return {
     NODE_ENV: nodeEnv,
@@ -299,6 +315,9 @@ export function validateEnv(env: Record<string, unknown>): Environment {
     JSON_BODY_LIMIT_BYTES: jsonBodyLimit,
     TRUSTED_PROXY: trustedProxy,
     SCHEDULE_ENABLED: scheduleEnabled,
+    UPLOAD_ENABLED: uploadEnabled,
+    UPLOAD_MAX_BYTES: uploadMaxBytes,
+    UPLOAD_ROOT: uploadRoot,
   };
 }
 
@@ -374,4 +393,45 @@ function requireTrustedProxy(value: unknown): number | null {
     throw new Error('TRUSTED_PROXY 必须是 1..5 的跳数');
   }
   return Number(value);
+}
+
+/** 上传体积上限。缺省 5MiB，不允许超过 5MiB。 */
+function requireUploadMax(value: unknown): number {
+  if (value === undefined || value === '') {
+    return UPLOAD_MAX_BYTES_DEFAULT;
+  }
+  if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value)) {
+    throw new Error(
+      `UPLOAD_MAX_BYTES 必须是 1..${UPLOAD_MAX_BYTES_LIMIT} 的整数`,
+    );
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed > UPLOAD_MAX_BYTES_LIMIT) {
+    throw new Error(
+      `UPLOAD_MAX_BYTES 必须是 1..${UPLOAD_MAX_BYTES_LIMIT} 的整数`,
+    );
+  }
+  return parsed;
+}
+
+/**
+ * 关闭上传时不要求目录。打开时必须是项目目录之外的绝对路径。
+ * 错误不回显路径。
+ */
+function requireUploadRoot(value: unknown, enabled: boolean): string | null {
+  if (!enabled) {
+    return null;
+  }
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error('UPLOAD_ROOT 在 UPLOAD_ENABLED=true 时必填');
+  }
+  const root = path.resolve(value.trim());
+  if (!path.isAbsolute(value.trim()) || root === path.parse(root).root) {
+    throw new Error('UPLOAD_ROOT 必须是项目目录之外的绝对路径');
+  }
+  const project = path.resolve(process.cwd());
+  if (root === project || root.startsWith(`${project}${path.sep}`)) {
+    throw new Error('UPLOAD_ROOT 必须是项目目录之外的绝对路径');
+  }
+  return root;
 }

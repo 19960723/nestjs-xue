@@ -41,6 +41,9 @@ describe('validateEnv', () => {
       AUTH_IP_WINDOW_SECONDS: 60,
       REDIS_URL: 'redis://127.0.0.1:6379',
       SCHEDULE_ENABLED: false,
+      UPLOAD_ENABLED: false,
+      UPLOAD_MAX_BYTES: 5_242_880,
+      UPLOAD_ROOT: null,
     });
   });
 
@@ -165,6 +168,25 @@ describe('validateEnv', () => {
     expect(() => validateEnv(envWithDb({ SCHEDULE_ENABLED: 'yes' }))).toThrow(
       'SCHEDULE_ENABLED 必须是 true / false 之一',
     );
+    expect(() => validateEnv(envWithDb({ UPLOAD_ENABLED: 'true' }))).toThrow(
+      'UPLOAD_ROOT 在 UPLOAD_ENABLED=true 时必填',
+    );
+    expect(
+      validateEnv(
+        envWithDb({
+          UPLOAD_ENABLED: 'true',
+          UPLOAD_ROOT: '/tmp/init-xue-upload',
+        }),
+      ).UPLOAD_ROOT,
+    ).toBe('/tmp/init-xue-upload');
+    expect(() =>
+      validateEnv(
+        envWithDb({
+          UPLOAD_ENABLED: 'true',
+          UPLOAD_ROOT: 'relative/uploads',
+        }),
+      ),
+    ).toThrow('UPLOAD_ROOT 必须是项目目录之外的绝对路径');
   });
 
   it.each([

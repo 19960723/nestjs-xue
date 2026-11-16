@@ -1,6 +1,6 @@
 # 阶段 08：公共基础能力
 
-更新：2026-11-16。文档状态：已更新；功能状态：进行中（存活与就绪探针已分开。HTTP 已加安全响应头、精确跨域来源和 JSON 体积上限。应用日志和访问日志已是一行 JSON。启用停用、软删除、角色分配、改密和退出已写同一事务审计。`GET /audit-logs` 已提供只读查询。登录失败和权限拒绝已记入安全日志。过期清理已接入且默认关闭。上传未做）。前置：[02](../02-database/implementation.md)～[07](../07-redis/implementation.md)。本阶段增强01/03已有基础，优先修改原配置/日志入口，不创建第二套系统。
+更新：2026-11-16。文档状态：已更新；功能状态：进行中（存活与就绪探针已分开。HTTP 已加安全响应头、精确跨域来源和 JSON 体积上限。应用日志和访问日志已是一行 JSON。启用停用、软删除、角色分配、改密和退出已写同一事务审计。`GET /audit-logs` 已提供只读查询。登录失败和权限拒绝已记入安全日志。过期清理已接入且默认关闭。文件上传和下载已接入且默认关闭）。前置：[02](../02-database/implementation.md)～[07](../07-redis/implementation.md)。本阶段增强01/03已有基础，优先修改原配置/日志入口，不创建第二套系统。
 
 ## 1. 阶段目标
 
@@ -44,7 +44,7 @@ schedule已核实12.0.2，后续手动 `pnpm add --save-exact @nestjs/schedule@1
 
 ### 5.2 分离存活与就绪检查
 
-2026-11-16 已接入。`GET /health/live` 仍只返回进程可响应。`GET /health/ready` 同时做 MySQL `SELECT 1`（语句最长 1 秒）和 Redis `PING`。两项都成功才返回 200，`data.status` 为 `ok`。任一失败或进程开始关闭时返回 503，文案是「服务暂不可用」，不说明是哪一项，也不返回地址。两个探针都是公开路由。上传未做。关闭过程中的 HTTP 未验收。
+2026-11-16 已接入。`GET /health/live` 仍只返回进程可响应。`GET /health/ready` 同时做 MySQL `SELECT 1`（语句最长 1 秒）和 Redis `PING`。两项都成功才返回 200，`data.status` 为 `ok`。任一失败或进程开始关闭时返回 503，文案是「服务暂不可用」，不说明是哪一项，也不返回地址。两个探针都是公开路由。关闭过程中的 HTTP 未验收。
 
 - 目标：上游知道何时可路由流量。
 - 文件：修改 `project/src/modules/health/{health.controller,health.service,health.module}.ts`、Guard/节流排除规则。
@@ -76,6 +76,8 @@ await prisma.$transaction(async (tx) => {
 - 预期/验证：每次关键写有对应actor/target/requestId，日志无凭据；不提供改写/删除审计的HTTP接口。生产可为audit_logs授予runtime只SELECT/INSERT，其余表按需DML；保留清理由独立维护账户执行。
 
 ### 5.4 实现文件上传、存储与读取
+
+2026-11-16 已接入，默认关闭。`UPLOAD_ENABLED` 缺省为 false，不注册路由。打开后，`POST /files` 只接受一个名为 `file` 的 PNG 或 JPEG，体积默认不超过 5MiB。判断依据是文件头，不看客户端类型和扩展名。磁盘名是随机键，原始文件名只存元数据。数据库写入失败会删除刚移动的文件。`GET /files/:id/content` 返回原始字节；所有者或持有 `files:read` 的用户可以下载，其他人得到 404。没有重新解码图片，也不扫描孤儿文件。
 
 - 目标：内容、容量和对象归属均受限。
 - 文件：新建 `project/src/modules/files/{files.module,files.controller,files.service,file-storage.service}.ts`及DTO/验证器，新增StoredFile模型。
@@ -142,8 +144,8 @@ originalName仅作为经长度/控制字符过滤的元数据，不用于路径�
 | --- | --- | --- | --- | --- | --- | --- |
 | 存活 | GET /health/live | 无 | status:ok | 200 | 500 | Public/不节流 |
 | 就绪 | GET /health/ready | 无 | status:ok/unavailable | 200 | 503 | 内部探针/仅简要状态 |
-| 上传 | POST /files | multipart file | id/mimeType/sizeBytes/createdAt | 201 | 400/401/403/413/429/503 | JWT/files:upload |
-| 下载 | GET /files/:id/content | UUID | 原始文件流 | 200 | 400/401/403/404/429/503 | JWT/files:read+owner检查 |
+| 上传 | POST /files | multipart file | id/mimeType/sizeBytes/createdAt | 201 | 400/401/403/413/503 | JWT/files:upload；UPLOAD_ENABLED |
+| 下载 | GET /files/:id/content | UUID | 原始字节 | 200 | 401/404/503 | JWT；所有者或 files:read；UPLOAD_ENABLED |
 | 审计列表 | GET /audit-logs | 分页/action?/actorId?/from?/to? | list/total/page/pageSize | 200 | 400/401/403/503 | JWT/audit:read |
 
 示例：`curl -i http://localhost:3000/api/v1/health/ready`；`curl -i http://localhost:3000/api/v1/audit-logs -H "Authorization: Bearer $ACCESS_TOKEN"`。上传测试使用5.4的multipart示例，必须用隔离测试文件和本地真实路径替换示意路径。
@@ -157,7 +159,7 @@ originalName仅作为经长度/控制字符过滤的元数据，不用于路径�
 - [ ] 清理幂等、有批次/索引/保留策略，多实例不重复执行。
 - [ ] OpenAPI、权限种子与数据库迁移同步更新。
 
-验收记录：阶段仍未标为已验证。2026-11-16 依赖正常时 live 和 ready 都是 200，`data.status` 为 `ok`。停止本地 Redis 后 live 200、ready 503，登录 503；Redis 恢复后 ready 回到 200。没有停 MySQL，也没有在进程关闭途中打探针。同一天的安全头、跨域和 JSON 体积见 [CHG-20261116-003](../changelog/2026-11-16-003-http-boundary.md)。关键写审计见 [CHG-20261116-005](../changelog/2026-11-16-005-audit-log.md)。只读查询见 [CHG-20261116-006](../changelog/2026-11-16-006-audit-query.md)。登录失败和权限拒绝的安全日志见 [CHG-20261116-007](../changelog/2026-11-16-007-security-rejection.md)。过期清理见 [CHG-20261116-008](../changelog/2026-11-16-008-cleanup.md)。上传未做。
+验收记录：阶段仍未标为已验证。2026-11-16 依赖正常时 live 和 ready 都是 200，`data.status` 为 `ok`。停止本地 Redis 后 live 200、ready 503，登录 503；Redis 恢复后 ready 回到 200。没有停 MySQL，也没有在进程关闭途中打探针。同一天的安全头、跨域和 JSON 体积见 [CHG-20261116-003](../changelog/2026-11-16-003-http-boundary.md)。关键写审计见 [CHG-20261116-005](../changelog/2026-11-16-005-audit-log.md)。只读查询见 [CHG-20261116-006](../changelog/2026-11-16-006-audit-query.md)。登录失败和权限拒绝的安全日志见 [CHG-20261116-007](../changelog/2026-11-16-007-security-rejection.md)。过期清理见 [CHG-20261116-008](../changelog/2026-11-16-008-cleanup.md)。文件上传见 [CHG-20261116-009](../changelog/2026-11-16-009-file-upload.md)。孤儿文件扫描未做。
 
 ## 9. 常见问题
 

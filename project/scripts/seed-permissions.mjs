@@ -14,6 +14,8 @@ const PERMISSIONS = [
   ['roles:write', '管理角色'],
   ['permissions:read', '查看权限'],
   ['audit:read', '查看审计'],
+  ['files:upload', '上传文件'],
+  ['files:read', '下载文件'],
 ];
 
 const databaseUrl = process.env.DATABASE_URL;

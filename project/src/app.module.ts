@@ -14,6 +14,7 @@ import { AuthorizationModule } from './modules/authorization/authorization.modul
 import { UsersModule } from './modules/users/users.module.js';
 import { RolesModule } from './modules/roles/roles.module.js';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module.js';
+import { FilesModule } from './modules/files/files.module.js';
 
 // 固定的模块依赖在此声明；环境配置与可选 Observe 由下方工厂按需加入。
 @Module({
@@ -83,5 +84,9 @@ export async function createAppModule(): Promise<{
   appModule.imports?.push(
     await MaintenanceModule.register(environment.SCHEDULE_ENABLED),
   );
+  // 上传关闭时不注册路由，避免未配置目录也能收到文件。
+  if (environment.UPLOAD_ENABLED) {
+    appModule.imports?.push(FilesModule);
+  }
   return { appModule, appOptions };
 }

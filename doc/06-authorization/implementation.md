@@ -44,7 +44,7 @@ Auth Guard先验证身份，PermissionsGuard再从MySQL查未删除ACTIVE用户�
 
 没有把草稿里的主键、`enabled` 或 Restrict 外键覆盖到现有表。只给 `roles` 增加 `is_system`，默认 false。现有普通角色保持 false。
 
-种子是 `project/scripts/seed-permissions.mjs`，命令 `pnpm authz:seed`。它不在启动时执行，也不创建用户或密码。重复执行不新增权限。2026-11-12 的目录是这 9 个 API 权限：`users:create`、`users:read`、`users:update`、`users:update-status`、`users:delete`、`users:assign-roles`、`roles:read`、`roles:write`、`permissions:read`。2026-11-16 增加 `audit:read`，目录变为 10 个。`files` 仍没有对应接口，不写入目录。再次执行种子会把系统管理员角色的权限集改回这 10 个，不移除用户与角色的关联。
+种子是 `project/scripts/seed-permissions.mjs`，命令 `pnpm authz:seed`。它不在启动时执行，也不创建用户或密码。重复执行不新增权限。2026-11-12 的目录是这 9 个 API 权限：`users:create`、`users:read`、`users:update`、`users:update-status`、`users:delete`、`users:assign-roles`、`roles:read`、`roles:write`、`permissions:read`。2026-11-16 增加 `audit:read`、`files:upload` 和 `files:read`，目录变为 12 个。再次执行种子会把系统管理员角色的权限集改回这 12 个，不移除用户与角色的关联。
 
 种子保证两个系统角色：
 

@@ -32,6 +32,7 @@ model User {
   roles     UserRole[]
   sessions  UserSession[]
   auditLogs AuditLog[]
+  files     StoredFile[]
 
   @@index([status])
   @@index([deletedAt])
@@ -208,4 +209,21 @@ model AuditLog {
   @@index([targetType, targetId, createdAt])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// 上传文件的元数据。磁盘路径只由服务端生成的 storageKey 决定，不保存原始路径。
+// 物理删除用户前必须先处理这些行，所以外键是 Restrict。
+model StoredFile {
+  id           String    @id @default(uuid()) @db.VarChar(36)
+  ownerId      Int       @map("owner_id")
+  owner        User      @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  storageKey   String    @unique @map("storage_key") @db.VarChar(255)
+  originalName String    @map("original_name") @db.VarChar(255)
+  mimeType     String    @map("mime_type") @db.VarChar(100)
+  sizeBytes    Int       @map("size_bytes")
+  deletedAt    DateTime? @map("deleted_at") @db.DateTime(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([ownerId, deletedAt, createdAt])
+  @@map("stored_files")
 }
