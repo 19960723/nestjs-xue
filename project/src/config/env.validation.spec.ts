@@ -144,6 +144,22 @@ describe('validateEnv', () => {
     ).toThrow(/^REDIS_URL 协议必须是 redis 或 rediss$/);
   });
 
+  it('rejects wildcard CORS origins and an out-of-range proxy hop', () => {
+    expect(validateEnv(envWithDb())).toMatchObject({
+      CORS_ORIGINS: [],
+      JSON_BODY_LIMIT_BYTES: 1_048_576,
+      TRUSTED_PROXY: null,
+    });
+    expect(() =>
+      validateEnv(
+        envWithDb({ CORS_ORIGINS: 'https://user:secret-marker@example.com' }),
+      ),
+    ).toThrow(/^CORS_ORIGINS 只能是协议、主机和端口$/);
+    expect(() => validateEnv(envWithDb({ TRUSTED_PROXY: '9' }))).toThrow(
+      'TRUSTED_PROXY 必须是 1..5 的跳数',
+    );
+  });
+
   it.each([
     'DATABASE_HOST',
     'DATABASE_PORT',

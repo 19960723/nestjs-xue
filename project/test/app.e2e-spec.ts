@@ -1,12 +1,11 @@
 import { Test } from '@nestjs/testing';
-import type { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
-import type { App } from 'supertest/types.js';
 import { createAppModule } from '../src/app.module.js';
 import { configureApp } from '../src/bootstrap/configure-app.js';
 
 describe('Application (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: NestExpressApplication;
 
   beforeAll(async () => {
     // 复用实际启动的配置工厂，避免测试绕过环境校验或模块注册。
@@ -14,7 +13,8 @@ describe('Application (e2e)', () => {
     const moduleFixture = await Test.createTestingModule({
       imports: [appModule],
     }).compile();
-    app = moduleFixture.createNestApplication(appOptions);
+    app =
+      moduleFixture.createNestApplication<NestExpressApplication>(appOptions);
     // 必须在 init 前注册与 main 相同的 HTTP 规则，否则测到的路由会不同。
     configureApp(app);
     await app.init();

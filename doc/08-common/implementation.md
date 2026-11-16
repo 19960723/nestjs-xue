@@ -1,6 +1,6 @@
 # 阶段 08：公共基础能力
 
-更新：2026-11-16。文档状态：已更新；功能状态：进行中（`GET /health/live` 只表示进程可响应；`GET /health/ready` 检查 MySQL `SELECT 1` 和 Redis `PING`，失败返回 503 且不写明是哪一项。审计、上传和定时任务未做）。前置：[02](../02-database/implementation.md)～[07](../07-redis/implementation.md)。本阶段增强01/03已有基础，优先修改原配置/日志入口，不创建第二套系统。
+更新：2026-11-16。文档状态：已更新；功能状态：进行中（存活与就绪探针已分开。HTTP 已加安全响应头、精确跨域来源和 JSON 体积上限。应用日志和访问日志已是一行 JSON。审计、上传和定时任务未做）。前置：[02](../02-database/implementation.md)～[07](../07-redis/implementation.md)。本阶段增强01/03已有基础，优先修改原配置/日志入口，不创建第二套系统。
 
 ## 1. 阶段目标
 
@@ -32,6 +32,8 @@ schedule已核实12.0.2，后续手动 `pnpm add --save-exact @nestjs/schedule@1
 ## 5. 详细实施步骤
 
 ### 5.1 整合配置、日志与HTTP安全边界
+
+2026-11-16 已接入 HTTP 边界，并把应用日志和访问日志收成同一出口的一行 JSON。字段有 time、level、context、requestId、event；访问日志另有 duration、status、method 和截断后的 path。path 不含查询串，不记录请求头和正文。堆栈里的 mysql:// 与 redis:// 会抹掉。`helmet@8.3.0` 写入安全响应头并去掉 `X-Powered-By`。开启 Swagger 时放宽内容安全策略。`CORS_ORIGINS` 为空时不回写跨域头。`JSON_BODY_LIMIT_BYTES` 默认 1 MiB，超出返回 413。`TRUSTED_PROXY` 只接受 1..5 的跳数。登录来源仍使用套接字地址。
 
 - 目标：单一配置/日志入口，支持生产查询。
 - 文件：修改 `project/src/config/env.validation.ts`、03的request-context/logger、`project/src/main.ts`与bootstrap helper。
@@ -151,7 +153,7 @@ originalName仅作为经长度/控制字符过滤的元数据，不用于路径�
 - [ ] 清理幂等、有批次/索引/保留策略，多实例不重复执行。
 - [ ] OpenAPI、权限种子与数据库迁移同步更新。
 
-验收记录：阶段仍未标为已验证。2026-11-16 依赖正常时 live 和 ready 都是 200，`data.status` 为 `ok`。停止本地 Redis 后 live 200、ready 503，登录 503；Redis 恢复后 ready 回到 200。没有停 MySQL，也没有在进程关闭途中打探针。审计、上传和定时任务未做。
+验收记录：阶段仍未标为已验证。2026-11-16 依赖正常时 live 和 ready 都是 200，`data.status` 为 `ok`。停止本地 Redis 后 live 200、ready 503，登录 503；Redis 恢复后 ready 回到 200。没有停 MySQL，也没有在进程关闭途中打探针。同一天的安全头、跨域和 JSON 体积见 [CHG-20261116-003](../changelog/2026-11-16-003-http-boundary.md)。审计、上传和定时任务未做。
 
 ## 9. 常见问题
 

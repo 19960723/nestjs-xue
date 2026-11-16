@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { createAppModule } from './app.module.js';
 import { configureApp } from './bootstrap/configure-app.js';
 import { configureSwagger } from './bootstrap/configure-swagger.js';
@@ -10,7 +11,10 @@ import type { Environment } from './config/env.validation.js';
 async function bootstrap(): Promise<void> {
   // 工厂先校验环境，再决定是否接入 Observe；校验失败时不会创建 HTTP 应用。
   const { appModule, appOptions } = await createAppModule();
-  const app = await NestFactory.create(appModule, appOptions);
+  const app = await NestFactory.create<NestExpressApplication>(
+    appModule,
+    appOptions,
+  );
   const configService = app.get(ConfigService<Environment, true>);
   const logger = new Logger('Bootstrap');
 

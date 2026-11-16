@@ -46,6 +46,8 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-11-16-004-json-log.md](changelog/2026-11-16-004-json-log.md)
+- [doc/changelog/2026-11-16-003-http-boundary.md](changelog/2026-11-16-003-http-boundary.md)
 - [doc/changelog/2026-11-16-002-health-ready.md](changelog/2026-11-16-002-health-ready.md)
 - [doc/changelog/2026-11-16-001-user-profile-cache.md](changelog/2026-11-16-001-user-profile-cache.md)
 - [doc/changelog/2026-11-15-003-redis.md](changelog/2026-11-15-003-redis.md)

@@ -35,6 +35,12 @@ export interface Environment extends Record<string, unknown> {
   AUTH_IP_MAX_ATTEMPTS: number;
   AUTH_IP_WINDOW_SECONDS: number;
   REDIS_URL: string;
+  /** 允许的浏览器来源。空数组表示不回写跨域响应头。 */
+  CORS_ORIGINS: string[];
+  /** JSON 请求体上限，单位字节。 */
+  JSON_BODY_LIMIT_BYTES: number;
+  /** 信任的反向代理跳数。null 表示不信任 X-Forwarded-*。 */
+  TRUSTED_PROXY: number | null;
 }
 
 const MIN_JWT_SECRET_LENGTH = 32;
@@ -52,6 +58,10 @@ const AUTH_IP_MAX_DEFAULT = 60;
 const AUTH_IP_MAX_LIMIT = 10000;
 const AUTH_IP_WINDOW_DEFAULT = 60;
 const AUTH_IP_WINDOW_MAX = 3600;
+const JSON_BODY_LIMIT_DEFAULT = 1_048_576;
+const JSON_BODY_LIMIT_MIN = 1024;
+const JSON_BODY_LIMIT_MAX = 1_048_576;
+const CORS_ORIGIN_LIMIT = 20;
 
 const REMOVED_DATABASE_KEYS = [
   'DATABASE_HOST',
@@ -234,6 +244,19 @@ export function validateEnv(env: Record<string, unknown>): Environment {
     AUTH_IP_WINDOW_MAX,
   );
   const redisUrl = requireRedisUrl(env.REDIS_URL);
+  const corsOrigins = requireCorsOrigins(env.CORS_ORIGINS);
+  const jsonBodyLimit = boundedInt(
+    'JSON_BODY_LIMIT_BYTES',
+    env.JSON_BODY_LIMIT_BYTES,
+    JSON_BODY_LIMIT_DEFAULT,
+    JSON_BODY_LIMIT_MAX,
+  );
+  if (jsonBodyLimit < JSON_BODY_LIMIT_MIN) {
+    throw new Error(
+      `JSON_BODY_LIMIT_BYTES 必须是 ${JSON_BODY_LIMIT_MIN}..${JSON_BODY_LIMIT_MAX} 的整数`,
+    );
+  }
+  const trustedProxy = requireTrustedProxy(env.TRUSTED_PROXY);
 
   return {
     NODE_ENV: nodeEnv,
@@ -265,6 +288,9 @@ export function validateEnv(env: Record<string, unknown>): Environment {
     AUTH_IP_MAX_ATTEMPTS: ipMaxAttempts,
     AUTH_IP_WINDOW_SECONDS: ipWindowSeconds,
     REDIS_URL: redisUrl,
+    CORS_ORIGINS: corsOrigins,
+    JSON_BODY_LIMIT_BYTES: jsonBodyLimit,
+    TRUSTED_PROXY: trustedProxy,
   };
 }
 
@@ -286,4 +312,58 @@ function requireRedisUrl(value: unknown): string {
     throw new Error('REDIS_URL 缺少主机');
   }
   return value.trim();
+}
+
+/** 只接受逗号分隔的 http/https 来源。空值表示不开放跨域，不接受通配。 */
+function requireCorsOrigins(value: unknown): string[] {
+  if (value === undefined || value === '') {
+    return [];
+  }
+  if (typeof value !== 'string') {
+    throw new Error('CORS_ORIGINS 格式无效');
+  }
+  const origins: string[] = [];
+  for (const item of value.split(',')) {
+    const origin = item.trim();
+    if (origin === '' || origin === '*') {
+      throw new Error('CORS_ORIGINS 不能为空或通配');
+    }
+    let url: URL;
+    try {
+      url = new URL(origin);
+    } catch {
+      throw new Error('CORS_ORIGINS 含有无效来源');
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new Error('CORS_ORIGINS 协议必须是 http 或 https');
+    }
+    if (
+      url.username !== '' ||
+      url.password !== '' ||
+      url.pathname !== '/' ||
+      url.search !== '' ||
+      url.hash !== ''
+    ) {
+      throw new Error('CORS_ORIGINS 只能是协议、主机和端口');
+    }
+    if (origins.includes(url.origin)) {
+      throw new Error('CORS_ORIGINS 含有重复来源');
+    }
+    origins.push(url.origin);
+  }
+  if (origins.length > CORS_ORIGIN_LIMIT) {
+    throw new Error(`CORS_ORIGINS 最多 ${CORS_ORIGIN_LIMIT} 个来源`);
+  }
+  return origins;
+}
+
+/** 只接受 1..5 的代理跳数。不填表示不信任转发头，登录来源仍看套接字地址。 */
+function requireTrustedProxy(value: unknown): number | null {
+  if (value === undefined || value === '') {
+    return null;
+  }
+  if (typeof value !== 'string' || !/^[1-5]$/.test(value)) {
+    throw new Error('TRUSTED_PROXY 必须是 1..5 的跳数');
+  }
+  return Number(value);
 }

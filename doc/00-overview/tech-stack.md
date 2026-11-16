@@ -16,6 +16,7 @@
 | Redis 客户端 | ioredis 6.0.0 | 一套客户端覆盖缓存、原子限流和生命周期 | 2026-11-15 已精确安装。不叠加旧 cache-manager-ioredis 适配包，避免版本/TTL 混乱 |
 | JWT | @nestjs/jwt 12.0.3 | 复用 Nest 配置注入与签名校验 | 2026-11-09 已安装。registry 最新为 12.0.4，peer 相同，本批保持基线；直接使用 JwtService，不引入 Passport |
 | 密码 | argon2 0.45.1，Argon2id | 慢哈希与每密码盐，支持参数提升 | 在目标 Linux/CPU 实测原生模块；禁止复制宿主 node_modules 到容器 |
+| 安全响应头 | helmet 8.3.0 | 统一安全头并去掉 X-Powered-By | 2026-11-16 已精确安装。Node >=18。开启 Swagger 时放宽内容安全策略 |
 | OpenAPI | @nestjs/swagger 12.0.2 | DTO 驱动契约与调试 | peers 明确支持 Nest12、TS6；生产默认关闭或受访问控制 |
 | 参数校验 | class-validator 0.15.1 / class-transformer 0.5.1 | DTO 运行时校验与显式转换 | TS interface 不能代替运行时 DTO class |
 | 测试 | Jest 30.5.2 + @nestjs/testing 12.1.3 + 现有 Supertest 7.3.1 | 已按用户目标从 Vitest 迁移，最小测试本地通过 | 采用 tsc 预编译测试后 Jest 执行 ESM，详见阶段 09 |

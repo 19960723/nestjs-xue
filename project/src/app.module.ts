@@ -4,6 +4,7 @@ import type { DynamicModule, NestApplicationOptions } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { LOG_LEVELS, validateEnv } from './config/env.validation.js';
 import type { Environment } from './config/env.validation.js';
+import { JsonLogger } from './common/logging/json-logger.js';
 import { CommonModule } from './common/common.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { PrismaModule } from './database/prisma/prisma.module.js';
@@ -54,8 +55,12 @@ export async function createAppModule(): Promise<{
     imports: [configModule],
   };
   const appOptions: NestApplicationOptions = {
+    // 请求体改由 configureApp 按已校验的字节上限挂上，避免默认 100kb 和这里各挂一次。
+    bodyParser: false,
     // LOG_LEVELS 按严重程度排列：保留所选级别及更严重的日志。
-    logger: LOG_LEVELS.slice(0, LOG_LEVELS.indexOf(environment.LOG_LEVEL) + 1),
+    logger: new JsonLogger(
+      LOG_LEVELS.slice(0, LOG_LEVELS.indexOf(environment.LOG_LEVEL) + 1),
+    ),
   };
   if (environment.OBSERVE_ENABLED) {
     // 校验通过且显式开启后才加载 SDK，默认启动不产生 Observe 初始化副作用。

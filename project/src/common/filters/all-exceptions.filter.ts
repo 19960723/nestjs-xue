@@ -49,7 +49,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const name =
         exception instanceof Error ? exception.constructor.name : 'Unknown';
       this.logger.error(
-        `Unhandled error requestId=${requestId} name=${name}`,
+        `未处理错误 name=${name}`,
         exception instanceof Error ? exception.stack : undefined,
       );
     }
@@ -101,6 +101,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
         code: ErrorCode.SERVICE_UNAVAILABLE,
         message: '服务暂不可用',
       };
+    }
+
+    const bodyParserError = readBodyParserError(exception);
+    if (bodyParserError) {
+      return bodyParserError;
     }
 
     return {
@@ -194,4 +199,34 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     return ErrorCode.VALIDATION_ERROR;
   }
+}
+
+/**
+ * body-parser 抛出的不是 HttpException。
+ * 超限和坏 JSON 按校验失败返回，不把请求体写进日志。
+ */
+function readBodyParserError(error: unknown): {
+  status: number;
+  code: ApiErrorResponse['code'];
+  message: string;
+} | null {
+  if (typeof error !== 'object' || error === null) {
+    return null;
+  }
+  const type = (error as { type?: unknown }).type;
+  if (type === 'entity.too.large') {
+    return {
+      status: HttpStatus.PAYLOAD_TOO_LARGE,
+      code: ErrorCode.VALIDATION_ERROR,
+      message: '请求体过大',
+    };
+  }
+  if (type === 'entity.parse.failed') {
+    return {
+      status: HttpStatus.BAD_REQUEST,
+      code: ErrorCode.VALIDATION_ERROR,
+      message: '请求参数不合法',
+    };
+  }
+  return null;
 }

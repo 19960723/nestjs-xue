@@ -1,6 +1,6 @@
 # 项目技术文档导航
 
-更新：2026-11-16（Asia/Shanghai）。文档体系：已初始化；应用整体：进行中。阶段 01 有历史本地验收；02～04 已有数据库与 CRUD；03 已落地统一包装/异常/requestId（HTTP 未验收）。本地七份迁移已应用，库与 Schema 一致；已应用 SQL 删除了 `name` 而不是改名。角色资源 CRUD 已落地。已有首次设密、用户名登录、全局 Access Guard、`GET /auth/me`、Refresh 轮换、退出、修改密码和登录失败限制，这些切片已本地 HTTP 验收。权限 Guard、权限目录和角色分配已本地 HTTP 验收。重置未实现。已有一名启用且未删除的用户持有系统 admin。Redis 已接入登录来源限流和用户详情展示缓存。`GET /health/ready` 同时检查 MySQL 和 Redis。
+更新：2026-11-16（Asia/Shanghai）。文档体系：已初始化；应用整体：进行中。阶段 01 有历史本地验收；02～04 已有数据库与 CRUD；03 已落地统一包装/异常/requestId（HTTP 未验收）。本地七份迁移已应用，库与 Schema 一致；已应用 SQL 删除了 `name` 而不是改名。角色资源 CRUD 已落地。已有首次设密、用户名登录、全局 Access Guard、`GET /auth/me`、Refresh 轮换、退出、修改密码和登录失败限制，这些切片已本地 HTTP 验收。权限 Guard、权限目录和角色分配已本地 HTTP 验收。重置未实现。已有一名启用且未删除的用户持有系统 admin。Redis 已接入登录来源限流和用户详情展示缓存。`GET /health/ready` 同时检查 MySQL 和 Redis。HTTP 已加安全响应头、精确跨域来源和 JSON 体积上限。应用日志和访问日志已是一行 JSON。
 
 ## 从这里开始
 
@@ -23,7 +23,7 @@
 | 05 | [身份认证与会话](05-authentication/implementation.md) | 已更新 | 进行中（登录、Guard、刷新、退出、修改密码和登录失败限制已本地 HTTP 验收；重置未实现） | 04 |
 | 06 | [RBAC授权](06-authorization/implementation.md) | 已更新 | 进行中（权限 Guard、目录和角色分配已本地 HTTP 验收；已有一名有效管理员；permissionVersion 未做） | 05 |
 | 07 | [Redis缓存与共享限流](07-redis/implementation.md) | 已更新 | 进行中（单一客户端、登录来源限流和用户详情缓存已接入；全局限流与故障演练未做） | 04～06 |
-| 08 | [公共能力与审计](08-common/implementation.md) | 已更新 | 进行中（存活与就绪探针已分开；审计、上传和定时任务未做） | 02～07 |
+| 08 | [公共能力与审计](08-common/implementation.md) | 已更新 | 进行中（探针、安全边界和一行 JSON 日志已接入；审计未做） | 02～07 |
 | 09 | [测试质量与CI](09-testing/implementation.md) | 已更新 | 计划中（最小工具已在01验证，当前测试执行暂缓） | 01～08 |
 | 10 | [部署与运维](10-deployment/implementation.md) | 已编写 | 计划中 | 07～09 |
 
