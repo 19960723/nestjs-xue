@@ -1,6 +1,6 @@
 # 阶段 08：公共基础能力
 
-更新：2026-11-16。文档状态：已更新；功能状态：进行中（存活与就绪探针已分开。HTTP 已加安全响应头、精确跨域来源和 JSON 体积上限。应用日志和访问日志已是一行 JSON。启用停用、软删除、角色分配、改密和退出已写同一事务审计。`GET /audit-logs` 已提供只读查询。登录失败和权限拒绝已记入安全日志。上传和定时任务未做）。前置：[02](../02-database/implementation.md)～[07](../07-redis/implementation.md)。本阶段增强01/03已有基础，优先修改原配置/日志入口，不创建第二套系统。
+更新：2026-11-16。文档状态：已更新；功能状态：进行中（存活与就绪探针已分开。HTTP 已加安全响应头、精确跨域来源和 JSON 体积上限。应用日志和访问日志已是一行 JSON。启用停用、软删除、角色分配、改密和退出已写同一事务审计。`GET /audit-logs` 已提供只读查询。登录失败和权限拒绝已记入安全日志。过期清理已接入且默认关闭。上传未做）。前置：[02](../02-database/implementation.md)～[07](../07-redis/implementation.md)。本阶段增强01/03已有基础，优先修改原配置/日志入口，不创建第二套系统。
 
 ## 1. 阶段目标
 
@@ -44,7 +44,7 @@ schedule已核实12.0.2，后续手动 `pnpm add --save-exact @nestjs/schedule@1
 
 ### 5.2 分离存活与就绪检查
 
-2026-11-16 已接入。`GET /health/live` 仍只返回进程可响应。`GET /health/ready` 同时做 MySQL `SELECT 1`（语句最长 1 秒）和 Redis `PING`。两项都成功才返回 200，`data.status` 为 `ok`。任一失败或进程开始关闭时返回 503，文案是「服务暂不可用」，不说明是哪一项，也不返回地址。两个探针都是公开路由。审计、上传和定时任务未做。关闭过程中的 HTTP 未验收。
+2026-11-16 已接入。`GET /health/live` 仍只返回进程可响应。`GET /health/ready` 同时做 MySQL `SELECT 1`（语句最长 1 秒）和 Redis `PING`。两项都成功才返回 200，`data.status` 为 `ok`。任一失败或进程开始关闭时返回 503，文案是「服务暂不可用」，不说明是哪一项，也不返回地址。两个探针都是公开路由。上传未做。关闭过程中的 HTTP 未验收。
 
 - 目标：上游知道何时可路由流量。
 - 文件：修改 `project/src/modules/health/{health.controller,health.service,health.module}.ts`、Guard/节流排除规则。
@@ -86,6 +86,8 @@ await prisma.$transaction(async (tx) => {
 - 预期/验证：拒绝文件无临时残留；别人的id不泄漏内容；容器只读根目录时上传使用独立可写卷，不把文件放dist或容器临时层。
 
 ### 5.5 增加幂等清理任务与版本策略
+
+2026-11-16 已接入过期清理。`SCHEDULE_ENABLED` 缺省为 false，不注册定时器。设为 true 后，本进程在每小时整点（UTC）调用一次清理。每次最多删除 500 条 `expires_at` 已到的登录计数，以及 500 条 `created_at` 已超过 `SESSION_MAX_TTL_SECONDS` 的会话；会话删除会级联删除它的刷新记录。空闲到期或已撤销但未到绝对寿命的会话保留。没有密码重置令牌可清理。数据库失败只写一条 JSON 日志。多副本锁和上传孤儿清理未做。
 
 - 目标：清理可控、不多副本重复/误删。
 - 文件：新建 `project/src/modules/maintenance/maintenance.module.ts`、`cleanup.service.ts`；修改模块开关和部署角色。
@@ -155,7 +157,7 @@ originalName仅作为经长度/控制字符过滤的元数据，不用于路径�
 - [ ] 清理幂等、有批次/索引/保留策略，多实例不重复执行。
 - [ ] OpenAPI、权限种子与数据库迁移同步更新。
 
-验收记录：阶段仍未标为已验证。2026-11-16 依赖正常时 live 和 ready 都是 200，`data.status` 为 `ok`。停止本地 Redis 后 live 200、ready 503，登录 503；Redis 恢复后 ready 回到 200。没有停 MySQL，也没有在进程关闭途中打探针。同一天的安全头、跨域和 JSON 体积见 [CHG-20261116-003](../changelog/2026-11-16-003-http-boundary.md)。关键写审计见 [CHG-20261116-005](../changelog/2026-11-16-005-audit-log.md)。只读查询见 [CHG-20261116-006](../changelog/2026-11-16-006-audit-query.md)。登录失败和权限拒绝的安全日志见 [CHG-20261116-007](../changelog/2026-11-16-007-security-rejection.md)。上传和定时任务未做。
+验收记录：阶段仍未标为已验证。2026-11-16 依赖正常时 live 和 ready 都是 200，`data.status` 为 `ok`。停止本地 Redis 后 live 200、ready 503，登录 503；Redis 恢复后 ready 回到 200。没有停 MySQL，也没有在进程关闭途中打探针。同一天的安全头、跨域和 JSON 体积见 [CHG-20261116-003](../changelog/2026-11-16-003-http-boundary.md)。关键写审计见 [CHG-20261116-005](../changelog/2026-11-16-005-audit-log.md)。只读查询见 [CHG-20261116-006](../changelog/2026-11-16-006-audit-query.md)。登录失败和权限拒绝的安全日志见 [CHG-20261116-007](../changelog/2026-11-16-007-security-rejection.md)。过期清理见 [CHG-20261116-008](../changelog/2026-11-16-008-cleanup.md)。上传未做。
 
 ## 9. 常见问题
 

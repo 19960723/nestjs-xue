@@ -40,6 +40,7 @@ describe('validateEnv', () => {
       AUTH_IP_MAX_ATTEMPTS: 60,
       AUTH_IP_WINDOW_SECONDS: 60,
       REDIS_URL: 'redis://127.0.0.1:6379',
+      SCHEDULE_ENABLED: false,
     });
   });
 
@@ -157,6 +158,12 @@ describe('validateEnv', () => {
     ).toThrow(/^CORS_ORIGINS 只能是协议、主机和端口$/);
     expect(() => validateEnv(envWithDb({ TRUSTED_PROXY: '9' }))).toThrow(
       'TRUSTED_PROXY 必须是 1..5 的跳数',
+    );
+    expect(
+      validateEnv(envWithDb({ SCHEDULE_ENABLED: 'true' })).SCHEDULE_ENABLED,
+    ).toBe(true);
+    expect(() => validateEnv(envWithDb({ SCHEDULE_ENABLED: 'yes' }))).toThrow(
+      'SCHEDULE_ENABLED 必须是 true / false 之一',
     );
   });
 

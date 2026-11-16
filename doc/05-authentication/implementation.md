@@ -102,7 +102,7 @@ pnpm exec nest g controller modules/auth --no-spec
 - 用户名桶默认 15 分钟 10 次，来源地址桶默认 1 分钟 60 次。成功登录不减少次数。两个桶都用 HMAC-SHA256，库里不保存用户名或地址原文。密钥是必填的 `AUTH_LIMIT_HMAC_SECRET`，至少 32 个字符，没有默认值。
 - 次数用 `INSERT ... ON DUPLICATE KEY UPDATE attempts = attempts + 1` 在事务里增加。并发请求按行锁串行，读到的是增加之后的值。增加会提交，超限不回滚。
 - 来源地址只取直接连接的 `socket.remoteAddress`，不读取 `X-Forwarded-For`。IPv4 映射地址去掉 `::ffff:` 前缀。
-- 每次登录顺带删除最多 100 条已到期的桶。没有单独的定时清理任务。
+- 到期桶由默认关闭的定时清理删除，见阶段 08。登录请求不再顺手删除计数。
 - 数据库故障返回 503，不继续核对密码。不实现注册和密码重置。
 
 ### 5.1 增量建表与凭据服务

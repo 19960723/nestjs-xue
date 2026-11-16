@@ -41,6 +41,8 @@ export interface Environment extends Record<string, unknown> {
   JSON_BODY_LIMIT_BYTES: number;
   /** 信任的反向代理跳数。null 表示不信任 X-Forwarded-*。 */
   TRUSTED_PROXY: number | null;
+  /** 为 true 时本进程每小时清理一批过期数据。默认关闭。 */
+  SCHEDULE_ENABLED: boolean;
 }
 
 const MIN_JWT_SECRET_LENGTH = 32;
@@ -257,6 +259,11 @@ export function validateEnv(env: Record<string, unknown>): Environment {
     );
   }
   const trustedProxy = requireTrustedProxy(env.TRUSTED_PROXY);
+  const scheduleEnabled =
+    enumValue('SCHEDULE_ENABLED', env.SCHEDULE_ENABLED ?? 'false', [
+      'true',
+      'false',
+    ]) === 'true';
 
   return {
     NODE_ENV: nodeEnv,
@@ -291,6 +298,7 @@ export function validateEnv(env: Record<string, unknown>): Environment {
     CORS_ORIGINS: corsOrigins,
     JSON_BODY_LIMIT_BYTES: jsonBodyLimit,
     TRUSTED_PROXY: trustedProxy,
+    SCHEDULE_ENABLED: scheduleEnabled,
   };
 }
 

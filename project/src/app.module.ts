@@ -13,6 +13,7 @@ import { ApiGuard } from './modules/authorization/api.guard.js';
 import { AuthorizationModule } from './modules/authorization/authorization.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { RolesModule } from './modules/roles/roles.module.js';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module.js';
 
 // 固定的模块依赖在此声明；环境配置与可选 Observe 由下方工厂按需加入。
 @Module({
@@ -78,5 +79,9 @@ export async function createAppModule(): Promise<{
     // 模块与 instrument 必须来自同一次创建，分别交给 Nest 模块系统和应用工厂。
     appOptions.instrument = ObserveInstrument;
   }
+  // 清理服务始终可用。只有显式开启时才注册每小时的定时器。
+  appModule.imports?.push(
+    await MaintenanceModule.register(environment.SCHEDULE_ENABLED),
+  );
   return { appModule, appOptions };
 }

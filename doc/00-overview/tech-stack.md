@@ -22,7 +22,7 @@
 | 测试 | Jest 30.5.2 + @nestjs/testing 12.1.3 + 现有 Supertest 7.3.1 | 已按用户目标从 Vitest 迁移，最小测试本地通过 | 采用 tsc 预编译测试后 Jest 执行 ESM，详见阶段 09 |
 | 质量 | ESLint 10.13.0 / typescript-eslint 8.72.0 / Prettier 3.9.10 | 静态规则、类型检查、格式各司其职 | flat config 已验证；辅助包精确版与兼容声明见下表 |
 | 限流 | @nestjs/throttler 6.7.1 | 集成 Nest Guard 与策略元数据 | TTL 按该版毫秒；共享 Redis storage 需实际匹配接口 |
-| 定时任务 | @nestjs/schedule 12.0.2 | 简单周期清理与可控调度 | 多副本不能默认每实例执行同一任务 |
+| 定时任务 | @nestjs/schedule 12.0.2 | 简单周期清理与可控调度 | 2026-11-16 已精确安装。默认关闭；打开后每小时整点 UTC 只在一个进程执行 |
 | 容器 | Docker 29.6.1 / Compose 5.3.0（本机） | 可复现依赖、构建和部署 | Compose 文件不写废弃顶层 version；运行镜像单独固定 digest |
 
 新增依赖全部用 `pnpm add --save-exact` 或 `-DE`。辅助包未核实精确补丁时，先运行只读 `pnpm view <包> version engines peerDependencies --json`，确认正式版后使用返回版本精确安装，并回填本表和锁文件。不得用 `--force` 绕过 peers。Redis/MySQL 镜像 tag 只是候选线，发布前固定实际验证的 digest。
