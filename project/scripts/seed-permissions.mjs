@@ -13,6 +13,7 @@ const PERMISSIONS = [
   ['roles:read', '查看角色'],
   ['roles:write', '管理角色'],
   ['permissions:read', '查看权限'],
+  ['audit:read', '查看审计'],
 ];
 
 const databaseUrl = process.env.DATABASE_URL;
