@@ -14,7 +14,7 @@ import { PasswordService } from './password.service.js';
  * JwtAuthGuard 由授权模块包进唯一的全局 Guard，这里只导出它。
  * 导出 PasswordService 给首次设密使用。
  * 导入 RedisModule 只给登录来源限流，不在这里缓存用户或会话。
- * 导入 AuditModule 给改密和退出写同一事务的审计。
+ * 导入 AuditModule 给改密和退出写同一事务的审计，登录失败只写安全日志。
  */
 @Module({
   imports: [

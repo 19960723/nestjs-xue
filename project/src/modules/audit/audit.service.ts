@@ -1,8 +1,18 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
+import { writeJsonLog } from '../../common/logging/json-logger.js';
 import { RequestContextService } from '../../common/request-context.service.js';
 import { PrismaService } from '../../database/prisma/prisma.service.js';
 import { QueryAuditDto } from './dto/query-audit.dto.js';
+
+/** 没有改成数据的拒绝。这些名字不会写入 audit_logs。 */
+export const SecurityRejection = {
+  login: 'auth.login',
+  access: 'access.denied',
+} as const;
+
+export type SecurityRejectionName =
+  (typeof SecurityRejection)[keyof typeof SecurityRejection];
 
 /** 已成功提交的动作。拒绝和失败不使用这些名字。 */
 export const AuditAction = {
@@ -18,8 +28,9 @@ export const AuditAction = {
 export type AuditActionName = (typeof AuditAction)[keyof typeof AuditAction];
 
 /**
- * 在调用方的事务里写审计。
- * 只保存操作者、动作、对象和 requestId。不接收密码、哈希、令牌或请求正文。
+ * 成功变更写审计表，拒绝只写安全日志。
+ * 两类记录都不能带密码、哈希、令牌或请求正文。
+ * 安全日志写失败时吞掉异常，避免把原本的 401 或 403 变成 500。
  */
 @Injectable()
 export class AuditService {
@@ -47,6 +58,32 @@ export class AuditService {
         requestId,
       },
     });
+  }
+
+  /**
+   * 记录登录失败或权限拒绝。不写 audit_logs，因此不会出现在审计列表里。
+   * 登录失败不带操作者，避免暴露账号是否存在。权限拒绝只带已登录用户的数字 id。
+   */
+  reject(action: SecurityRejectionName, actorUserId?: number): void {
+    const actor =
+      action === SecurityRejection.access &&
+      actorUserId !== undefined &&
+      Number.isInteger(actorUserId)
+        ? actorUserId
+        : undefined;
+    try {
+      writeJsonLog({
+        time: new Date().toISOString(),
+        level: 'warn',
+        context: 'Security',
+        requestId: this.requestContext.getRequestId().slice(0, 64),
+        event: 'security.rejected',
+        message: action,
+        ...(actor === undefined ? {} : { actorUserId: actor }),
+      });
+    } catch {
+      return;
+    }
   }
 
   /**

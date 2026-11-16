@@ -11,7 +11,7 @@ import { UserRolesController } from './user-roles.controller.js';
 /**
  * 授权模块。提供权限 Guard，以及权限目录和角色分配接口。
  * 不在启动时写入角色或管理员。ApiGuard 由 AppModule 注册为唯一的全局 Guard。
- * AuditModule 给角色替换写同一事务的审计。
+ * AuditModule 给角色替换写同一事务的审计，权限拒绝只写安全日志。
  */
 @Module({
   imports: [AuthModule, AuditModule],

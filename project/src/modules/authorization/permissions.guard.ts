@@ -11,6 +11,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { IS_AUTHENTICATED_KEY } from '../../common/decorators/authenticated.decorator.js';
 import { PERMISSIONS_KEY } from '../../common/decorators/require-permissions.decorator.js';
 import { PrismaService } from '../../database/prisma/prisma.service.js';
+import { AuditService } from '../audit/audit.service.js';
 import { IS_PUBLIC_KEY } from '../auth/decorators/public.decorator.js';
 
 const FORBIDDEN = '权限不足';
@@ -29,6 +30,7 @@ export class PermissionsGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -46,13 +48,13 @@ export class PermissionsGuard implements CanActivate {
     );
     const declared = Array.isArray(permissions) ? permissions : [];
     if (isPublic && (isAuthenticated || declared.length > 0)) {
-      throw new ForbiddenException(FORBIDDEN);
+      this.deny();
     }
     if (isPublic) {
       return true;
     }
     if (isAuthenticated && declared.length > 0) {
-      throw new ForbiddenException(FORBIDDEN);
+      this.deny();
     }
 
     const request = context.switchToHttp().getRequest<RequestWithUser>();
@@ -64,7 +66,7 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
     if (!userId || declared.length === 0) {
-      throw new ForbiddenException(FORBIDDEN);
+      this.deny(userId);
     }
 
     let granted: string[];
@@ -99,9 +101,15 @@ export class PermissionsGuard implements CanActivate {
 
     const owned = new Set(granted);
     if (declared.some((code) => !owned.has(code))) {
-      throw new ForbiddenException(FORBIDDEN);
+      this.deny(userId);
     }
     return true;
+  }
+
+  /** 权限拒绝写安全日志后返回 403。日志失败仍返回 403，不写入成功审计。 */
+  private deny(actorUserId?: number): never {
+    this.audit.reject('access.denied', actorUserId);
+    throw new ForbiddenException(FORBIDDEN);
   }
 }
 

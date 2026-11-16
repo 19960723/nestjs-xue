@@ -13,6 +13,7 @@ export interface JsonLogEntry {
   method?: string;
   path?: string;
   stack?: string;
+  actorUserId?: number;
 }
 
 /**
@@ -32,6 +33,9 @@ export function writeJsonLog(entry: JsonLogEntry): void {
     ...(entry.method === undefined ? {} : { method: entry.method }),
     ...(entry.path === undefined ? {} : { path: entry.path }),
     ...(entry.stack === undefined ? {} : { stack: redact(entry.stack) }),
+    ...(entry.actorUserId === undefined
+      ? {}
+      : { actorUserId: entry.actorUserId }),
   };
   process.stdout.write(`${JSON.stringify(line)}\n`);
 }

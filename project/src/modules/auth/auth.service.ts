@@ -112,7 +112,9 @@ export class AuthService {
       passwordMatches;
 
     // 失败文案保持一致，调用方不能从异常区分是没有这个人还是密码错了。
+    // 安全日志只记动作，不记用户名、密码或哈希。
     if (!canLogin || !user || passwordHash === null) {
+      this.audit.reject('auth.login');
       throw new UnauthorizedException(LOGIN_FAILED);
     }
 
@@ -158,6 +160,7 @@ export class AuthService {
     });
 
     if (!session) {
+      this.audit.reject('auth.login');
       throw new UnauthorizedException(LOGIN_FAILED);
     }
 

@@ -1,6 +1,6 @@
 # 阶段 08：公共基础能力
 
-更新：2026-11-16。文档状态：已更新；功能状态：进行中（存活与就绪探针已分开。HTTP 已加安全响应头、精确跨域来源和 JSON 体积上限。应用日志和访问日志已是一行 JSON。启用停用、软删除、角色分配、改密和退出已写同一事务审计。`GET /audit-logs` 已提供只读查询。上传和定时任务未做）。前置：[02](../02-database/implementation.md)～[07](../07-redis/implementation.md)。本阶段增强01/03已有基础，优先修改原配置/日志入口，不创建第二套系统。
+更新：2026-11-16。文档状态：已更新；功能状态：进行中（存活与就绪探针已分开。HTTP 已加安全响应头、精确跨域来源和 JSON 体积上限。应用日志和访问日志已是一行 JSON。启用停用、软删除、角色分配、改密和退出已写同一事务审计。`GET /audit-logs` 已提供只读查询。登录失败和权限拒绝已记入安全日志。上传和定时任务未做）。前置：[02](../02-database/implementation.md)～[07](../07-redis/implementation.md)。本阶段增强01/03已有基础，优先修改原配置/日志入口，不创建第二套系统。
 
 ## 1. 阶段目标
 
@@ -55,7 +55,7 @@ schedule已核实12.0.2，后续手动 `pnpm add --save-exact @nestjs/schedule@1
 
 ### 5.3 实现审计和跨表事务
 
-2026-11-16 已接入成功写入，并增加只读查询。启用、停用、软删除、角色替换、修改密码、当前退出和全部退出，在各自业务事务里写 `audit_logs`。`GET /audit-logs` 分页返回这些字段，需要 `audit:read`。可按动作、操作者和起止时间筛选。开始时间晚于结束时间时返回 400。没有修改或删除接口。原密码错误不写成功审计。拒绝类事件还没有单独的审计。
+2026-11-16 已接入成功写入，并增加只读查询。启用、停用、软删除、角色替换、修改密码、当前退出和全部退出，在各自业务事务里写 `audit_logs`。`GET /audit-logs` 分页返回这些字段，需要 `audit:read`。可按动作、操作者和起止时间筛选。开始时间晚于结束时间时返回 400。没有修改或删除接口。原密码错误不写成功审计。登录失败和权限拒绝另写一条 `security.rejected` 安全日志，不进入 `audit_logs`，也不保存用户名、密码、哈希或令牌。
 
 - 目标：关键变更与其审计共成败。
 - 文件：新增 `project/src/modules/audit/{audit.module,audit.service,audit.repository,audit.controller}.ts`；修改users/auth/authorization写用例及Schema。
@@ -155,7 +155,7 @@ originalName仅作为经长度/控制字符过滤的元数据，不用于路径�
 - [ ] 清理幂等、有批次/索引/保留策略，多实例不重复执行。
 - [ ] OpenAPI、权限种子与数据库迁移同步更新。
 
-验收记录：阶段仍未标为已验证。2026-11-16 依赖正常时 live 和 ready 都是 200，`data.status` 为 `ok`。停止本地 Redis 后 live 200、ready 503，登录 503；Redis 恢复后 ready 回到 200。没有停 MySQL，也没有在进程关闭途中打探针。同一天的安全头、跨域和 JSON 体积见 [CHG-20261116-003](../changelog/2026-11-16-003-http-boundary.md)。关键写审计见 [CHG-20261116-005](../changelog/2026-11-16-005-audit-log.md)。只读查询见 [CHG-20261116-006](../changelog/2026-11-16-006-audit-query.md)。上传和定时任务未做。
+验收记录：阶段仍未标为已验证。2026-11-16 依赖正常时 live 和 ready 都是 200，`data.status` 为 `ok`。停止本地 Redis 后 live 200、ready 503，登录 503；Redis 恢复后 ready 回到 200。没有停 MySQL，也没有在进程关闭途中打探针。同一天的安全头、跨域和 JSON 体积见 [CHG-20261116-003](../changelog/2026-11-16-003-http-boundary.md)。关键写审计见 [CHG-20261116-005](../changelog/2026-11-16-005-audit-log.md)。只读查询见 [CHG-20261116-006](../changelog/2026-11-16-006-audit-query.md)。登录失败和权限拒绝的安全日志见 [CHG-20261116-007](../changelog/2026-11-16-007-security-rejection.md)。上传和定时任务未做。
 
 ## 9. 常见问题
 

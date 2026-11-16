@@ -1,6 +1,6 @@
 # 项目技术文档导航
 
-更新：2026-11-16（Asia/Shanghai）。文档体系：已初始化；应用整体：进行中。阶段 01 有历史本地验收；02～04 已有数据库与 CRUD；03 已落地统一包装/异常/requestId（HTTP 未验收）。本地七份迁移已应用，库与 Schema 一致；已应用 SQL 删除了 `name` 而不是改名。角色资源 CRUD 已落地。已有首次设密、用户名登录、全局 Access Guard、`GET /auth/me`、Refresh 轮换、退出、修改密码和登录失败限制，这些切片已本地 HTTP 验收。权限 Guard、权限目录和角色分配已本地 HTTP 验收。重置未实现。已有一名启用且未删除的用户持有系统 admin。Redis 已接入登录来源限流和用户详情展示缓存。`GET /health/ready` 同时检查 MySQL 和 Redis。HTTP 已加安全响应头、精确跨域来源和 JSON 体积上限。应用日志和访问日志已是一行 JSON。启用停用、软删除、角色分配、改密和退出已写同一事务审计。`GET /audit-logs` 提供只读查询。
+更新：2026-11-16（Asia/Shanghai）。文档体系：已初始化；应用整体：进行中。阶段 01 有历史本地验收；02～04 已有数据库与 CRUD；03 已落地统一包装/异常/requestId（HTTP 未验收）。本地七份迁移已应用，库与 Schema 一致；已应用 SQL 删除了 `name` 而不是改名。角色资源 CRUD 已落地。已有首次设密、用户名登录、全局 Access Guard、`GET /auth/me`、Refresh 轮换、退出、修改密码和登录失败限制，这些切片已本地 HTTP 验收。权限 Guard、权限目录和角色分配已本地 HTTP 验收。重置未实现。已有一名启用且未删除的用户持有系统 admin。Redis 已接入登录来源限流和用户详情展示缓存。`GET /health/ready` 同时检查 MySQL 和 Redis。HTTP 已加安全响应头、精确跨域来源和 JSON 体积上限。应用日志和访问日志已是一行 JSON。启用停用、软删除、角色分配、改密和退出已写同一事务审计。`GET /audit-logs` 提供只读查询。登录失败和权限拒绝已记入安全日志。
 
 ## 从这里开始
 
