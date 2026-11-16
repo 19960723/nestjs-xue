@@ -29,8 +29,9 @@ model User {
   updatedAt   DateTime?  @updatedAt @map("updated_at")
 
   // 关联关系
-  roles    UserRole[]
-  sessions UserSession[]
+  roles     UserRole[]
+  sessions  UserSession[]
+  auditLogs AuditLog[]
 
   @@index([status])
   @@index([deletedAt])
@@ -189,4 +190,22 @@ model AuthAttemptBucket {
   @@id([keyHash, windowStart])
   @@index([expiresAt])
   @@map("auth_attempt_buckets")
+}
+
+// 关键写操作的审计。只记操作者、动作、对象和 requestId，不记密码、哈希或令牌。
+// 运行时不更新、不删除这些行。操作者被物理删除前必须先处理审计，所以外键是 Restrict。
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  actorUserId Int?     @map("actor_user_id")
+  actor       User?    @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  action      String   @db.VarChar(64)
+  targetType  String   @map("target_type") @db.VarChar(32)
+  targetId    String   @map("target_id") @db.VarChar(64)
+  requestId   String   @map("request_id") @db.VarChar(64)
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([actorUserId, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@index([createdAt])
+  @@map("audit_logs")
 }

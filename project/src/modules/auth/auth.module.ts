@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { RedisModule } from '../../infrastructure/redis/redis.module.js';
+import { AuditModule } from '../audit/audit.module.js';
 import { LoginLimitService } from './login-limit.service.js';
 import { PasswordService } from './password.service.js';
 
@@ -13,9 +14,11 @@ import { PasswordService } from './password.service.js';
  * JwtAuthGuard 由授权模块包进唯一的全局 Guard，这里只导出它。
  * 导出 PasswordService 给首次设密使用。
  * 导入 RedisModule 只给登录来源限流，不在这里缓存用户或会话。
+ * 导入 AuditModule 给改密和退出写同一事务的审计。
  */
 @Module({
   imports: [
+    AuditModule,
     RedisModule,
     JwtModule.registerAsync({
       inject: [ConfigService],

@@ -8,6 +8,7 @@ import {
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../database/prisma/prisma.service.js';
 import { RedisService } from '../../infrastructure/redis/redis.service.js';
+import { AuditAction, AuditService } from '../audit/audit.service.js';
 import { PasswordService } from '../auth/password.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
@@ -20,6 +21,7 @@ import { userPublicSelect } from './user.select.js';
  * 首次设密只在密码仍为空、未删除且启用时写入；哈希在更新前计算。
  * 删除写入 deletedAt，并撤销该用户全部会话。已删除用户按不存在处理。
  * 详情在确认未删除后可读短时展示缓存。资料、状态、设密和删除提交后再删缓存。
+ * 启用、停用和软删除成功时在同一事务写审计，不记录密码或令牌。
  */
 @Injectable()
 export class UsersService {
@@ -27,6 +29,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
     private readonly redis: RedisService,
+    private readonly audit: AuditService,
   ) {}
 
   /** 把唯一索引冲突换成字段文案。认不出字段时仍返回 409，不把 Prisma 内部信息交给客户端。 */
@@ -247,6 +250,7 @@ export class UsersService {
   /**
    * 改启用状态。停用时版本加一并撤销全部会话，旧 Access 下一请求失效。
    * 启用只改状态，不恢复已撤销的会话。事务提交后再删展示缓存；用户已不存在时也删。
+   * 状态确实变化后才写审计。已经是目标状态时不记。
    */
   async updateStatus(actorId: number, id: number, status: number) {
     if (actorId === id && status === 0) {
@@ -291,6 +295,14 @@ export class UsersService {
             data: { status: 1 },
           });
         }
+
+        await this.audit.record(tx, {
+          actorUserId: actorId,
+          action:
+            status === 0 ? AuditAction.userDisable : AuditAction.userEnable,
+          targetType: 'user',
+          targetId: id,
+        });
 
         return tx.user.findUniqueOrThrow({
           where: { id },
@@ -362,6 +374,7 @@ export class UsersService {
    * 软删除。写入删除时间，版本加一，并撤销全部未撤销会话。
    * 不能删除自己，也不能删除最后一名有效管理员。角色关联保留，身份仍被占用。
    * 事务提交后再删展示缓存。删除失败不回滚数据库，剩下的值靠有效期消失。
+   * 软删除成功后同一事务写审计。
    */
   async remove(actorId: number, id: number): Promise<null> {
     if (actorId === id) {
@@ -388,6 +401,12 @@ export class UsersService {
       await tx.userSession.updateMany({
         where: { userId: id, revokedAt: null },
         data: { revokedAt: new Date() },
+      });
+      await this.audit.record(tx, {
+        actorUserId: actorId,
+        action: AuditAction.userDelete,
+        targetType: 'user',
+        targetId: id,
       });
     });
 

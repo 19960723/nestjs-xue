@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../database/prisma/prisma.service.js';
+import { AuditAction, AuditService } from '../audit/audit.service.js';
 import { userPublicSelect } from '../users/user.select.js';
 import { isDatabaseError } from './database-error.js';
 import { LoginLimitService } from './login-limit.service.js';
@@ -69,6 +70,7 @@ function refreshHash(token: string): string {
  * 未知、过期、已撤销、禁用和软删都只返回 401，不扩大撤销范围。
  * 新 Refresh 的到期时间不超过会话创建时间加上 SESSION_MAX_TTL_SECONDS。
  * 当前退出只撤销这一条会话。全部退出和修改密码会把 tokenVersion 加一，并撤销该用户全部会话。
+ * 这三项成功时在同一事务写审计，不记录密码、哈希或令牌。
  */
 @Injectable()
 export class AuthService {
@@ -80,6 +82,7 @@ export class AuthService {
     private readonly loginLimits: LoginLimitService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -255,6 +258,7 @@ export class AuthService {
   /**
    * 撤销当前 Access 对应的会话。其它登录不受影响，也不提升 tokenVersion。
    * 会话已经撤销时仍然返回成功；随后同一个 Access 会在 Guard 得到 401。
+   * 找到会话就写审计。审计失败会让撤销一起回滚。
    */
   async logout(sessionId: number): Promise<null> {
     try {
@@ -271,6 +275,12 @@ export class AuthService {
           where: { id: sessionId, revokedAt: null },
           data: { revokedAt: new Date() },
         });
+        await this.audit.record(tx, {
+          actorUserId: session.userId,
+          action: AuditAction.logout,
+          targetType: 'session',
+          targetId: sessionId,
+        });
       });
       return null;
     } catch (error: unknown) {
@@ -283,7 +293,7 @@ export class AuthService {
 
   /**
    * 结束该用户的全部登录。tokenVersion 先加一，再撤销尚未撤销的会话。
-   * 旧 Access 因版本不符失效，旧 Refresh 因会话撤销失效。
+   * 旧 Access 因版本不符失效，旧 Refresh 因会话撤销失效。成功后同一事务写审计。
    */
   async logoutAll(userId: number): Promise<null> {
     try {
@@ -296,6 +306,12 @@ export class AuthService {
         await tx.userSession.updateMany({
           where: { userId, revokedAt: null },
           data: { revokedAt: new Date() },
+        });
+        await this.audit.record(tx, {
+          actorUserId: userId,
+          action: AuditAction.logoutAll,
+          targetType: 'user',
+          targetId: userId,
         });
       });
       return null;
@@ -317,6 +333,7 @@ export class AuthService {
    * 核对原密码后更换哈希。新哈希在事务外计算。
    * 事务内要求原哈希和 tokenVersion 都没变，才替换密码、版本加一并撤销全部会话。
    * 条件不满足返回 409。原密码错误、未设密、已禁用或已删除都返回同一条 401。
+   * 只有替换成功才写审计，审计里没有新旧密码。
    */
   async changePassword(
     userId: number,
@@ -370,6 +387,12 @@ export class AuthService {
         await tx.userSession.updateMany({
           where: { userId, revokedAt: null },
           data: { revokedAt: new Date() },
+        });
+        await this.audit.record(tx, {
+          actorUserId: userId,
+          action: AuditAction.changePassword,
+          targetType: 'user',
+          targetId: userId,
         });
         return true;
       });

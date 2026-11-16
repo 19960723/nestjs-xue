@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../database/prisma/prisma.service.js';
+import { AuditAction, AuditService } from '../audit/audit.service.js';
 import { rolePublicSelect } from '../roles/role.select.js';
 
 const ADMIN_CODE = 'admin';
@@ -27,7 +28,10 @@ type Tx = Prisma.TransactionClient;
  */
 @Injectable()
 export class AuthorizationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   /** 返回全部权限目录，按权限码排序。目录由种子写入，这里不提供新增接口。 */
   listPermissions() {
@@ -108,6 +112,7 @@ export class AuthorizationService {
   /**
    * 用传入的角色 ID 替换用户的全部角色。空数组表示清空。
    * 不能改自己的角色。角色上的启用权限必须都是操作者已具备的。
+   * 替换成功后同一事务写审计，不记录角色名单。
    */
   async replaceUserRoles(actorId: number, userId: number, roleIds: number[]) {
     if (actorId === userId) {
@@ -143,6 +148,12 @@ export class AuthorizationService {
           data: roles.map((role) => ({ userId, roleId: role.id })),
         });
       }
+      await this.audit.record(tx, {
+        actorUserId: actorId,
+        action: AuditAction.userRoles,
+        targetType: 'user',
+        targetId: userId,
+      });
 
       return tx.role.findMany({
         where: { users: { some: { userId } } },
