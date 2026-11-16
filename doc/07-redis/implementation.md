@@ -1,6 +1,6 @@
 # 阶段 07：Redis 与缓存
 
-更新：2026-11-15。文档状态：已更新；功能状态：进行中（已接入单一 Redis 客户端，登录来源地址先计入 Redis 固定窗口。展示缓存、全局 Throttler 和故障演练未做）。前置：[04](../04-user-management/implementation.md)～[06](../06-authorization/implementation.md)。命令默认project/。
+更新：2026-11-16。文档状态：已更新；功能状态：进行中（已接入单一 Redis 客户端。登录来源地址先计入 Redis 固定窗口。用户详情在确认未删除后可读 60～75 秒展示缓存，提交后删除。全局 Throttler 和故障演练未做）。前置：[04](../04-user-management/implementation.md)～[06](../06-authorization/implementation.md)。命令默认project/。
 
 ## 1. 阶段目标
 
@@ -47,6 +47,8 @@ pnpm add --save-exact ioredis@6.0.0 @nestjs/throttler@6.7.1
 
 ### 5.2 定义Key和JSON缓存边界
 
+2026-11-16 已接入，没有另建缓存模块。`RedisService` 只接受 `users:profile` 和正整数 id，自己拼出 `init-xue:{env}:v1:users:profile:{id}`。有效期由调用方传入，限定 1～3600 秒。详情使用 60 秒再加 0～15 秒。坏 JSON 当未命中并删除。字段不符合同样当未命中。缓存失败只记日志，详情改读 MySQL。
+
 - 目标：隔离环境、避免单位误用与数据泄漏。
 - 文件：新建 `project/src/infrastructure/redis/cache.service.ts`、`cache-key.ts`及单测。
 - 操作：Key统一 `init-xue:{env}:v1:{module}:{resource}:{id}`，例如`init-xue:development:v1:users:profile:42`；不拼原文email、token、密码或用户可控无界字符串。getJson返回命中/未命中并校验缓存结构；坏JSON或不符schema按miss并删除。setJson参数明确ttlSeconds，内部 `SET key JSON EX ttlSeconds`；禁止传0/负数/无限TTL。
@@ -69,6 +71,8 @@ async setJson(key: string, value: unknown, ttlSeconds: number): Promise<void> {
 - 预期/验证：跨环境Key不碰撞，坏数据回源不500，所有缓存都有过期。
 
 ### 5.3 接入展示缓存与提交后失效
+
+2026-11-16 只缓存用户详情的公开字段。`findOne` 先用 MySQL 确认未删除，再读缓存。列表不缓存。资料更新、首次设密、启用停用和软删除在提交成功后删除该键。删除失败不回滚数据库。登录、会话和权限仍每次查 MySQL。没有单独的用户缓存服务。
 
 - 目标：提速但保留安全判断与一致性边界。
 - 文件：修改UsersService，新增 `project/src/modules/users/user-profile-cache.service.ts`；UsersModule显式导入RedisModule。
@@ -155,7 +159,7 @@ Node storage调用 `redis.eval(script, 1, scopedKey, ttl, limit, blockDuration)`
 - [ ] 两实例共享限流，毫秒/秒、封禁TTL和Retry-After正确。
 - [ ] 缓存/安全依赖故障策略、live/ready状态符合约定。
 
-验收记录：未把阶段标为已验证。2026-11-15 本地启动日志出现 `Redis 连接成功`。一次不存在用户的登录返回 401，`code` 为 `UNAUTHENTICATED`。未做两实例并发，也没有停掉 Redis 演练故障。展示缓存未做。
+验收记录：未把阶段标为已验证。2026-11-15 本地启动日志出现 `Redis 连接成功`。一次不存在用户的登录返回 401，`code` 为 `UNAUTHENTICATED`。2026-11-16 临时账号的详情缓存命中、更新后删除、坏 JSON 回源和软删除后 404 已本地 HTTP 验收，临时数据已删除。未做两实例并发，也没有停掉 Redis 演练故障。
 
 ## 9. 常见问题
 
