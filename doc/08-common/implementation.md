@@ -1,6 +1,6 @@
 # 阶段 08：公共基础能力
 
-更新：2026-10-21。文档状态：已编写；功能状态：计划中。前置：[02](../02-database/implementation.md)～[07](../07-redis/implementation.md)。本阶段增强01/03已有基础，优先修改原配置/日志入口，不创建第二套系统。
+更新：2026-11-16。文档状态：已更新；功能状态：进行中（`GET /health/live` 只表示进程可响应；`GET /health/ready` 检查 MySQL `SELECT 1` 和 Redis `PING`，失败返回 503 且不写明是哪一项。审计、上传和定时任务未做）。前置：[02](../02-database/implementation.md)～[07](../07-redis/implementation.md)。本阶段增强01/03已有基础，优先修改原配置/日志入口，不创建第二套系统。
 
 ## 1. 阶段目标
 
@@ -41,6 +41,8 @@ schedule已核实12.0.2，后续手动 `pnpm add --save-exact @nestjs/schedule@1
 - 预期/验证：JSON可逐行解析，400/403/413/500都有requestId；console临时调试与重复日志被清理；不新增额外日志框架仅为“企业级”。
 
 ### 5.2 分离存活与就绪检查
+
+2026-11-16 已接入。`GET /health/live` 仍只返回进程可响应。`GET /health/ready` 同时做 MySQL `SELECT 1`（语句最长 1 秒）和 Redis `PING`。两项都成功才返回 200，`data.status` 为 `ok`。任一失败或进程开始关闭时返回 503，文案是「服务暂不可用」，不说明是哪一项，也不返回地址。两个探针都是公开路由。审计、上传和定时任务未做。关闭过程中的 HTTP 未验收。
 
 - 目标：上游知道何时可路由流量。
 - 文件：修改 `project/src/modules/health/{health.controller,health.service,health.module}.ts`、Guard/节流排除规则。
@@ -149,7 +151,7 @@ originalName仅作为经长度/控制字符过滤的元数据，不用于路径�
 - [ ] 清理幂等、有批次/索引/保留策略，多实例不重复执行。
 - [ ] OpenAPI、权限种子与数据库迁移同步更新。
 
-验收记录：未执行；文件存储与审计保留周期待业务确认。
+验收记录：阶段仍未标为已验证。2026-11-16 依赖正常时 live 和 ready 都是 200，`data.status` 为 `ok`。停止本地 Redis 后 live 200、ready 503，登录 503；Redis 恢复后 ready 回到 200。没有停 MySQL，也没有在进程关闭途中打探针。审计、上传和定时任务未做。
 
 ## 9. 常见问题
 

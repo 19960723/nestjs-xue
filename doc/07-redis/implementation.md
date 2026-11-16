@@ -1,6 +1,6 @@
 # 阶段 07：Redis 与缓存
 
-更新：2026-11-16。文档状态：已更新；功能状态：进行中（已接入单一 Redis 客户端。登录来源地址先计入 Redis 固定窗口。用户详情在确认未删除后可读 60～75 秒展示缓存，提交后删除。全局 Throttler 和故障演练未做）。前置：[04](../04-user-management/implementation.md)～[06](../06-authorization/implementation.md)。命令默认project/。
+更新：2026-11-16。文档状态：已更新；功能状态：进行中（已接入单一 Redis 客户端。登录来源地址先计入 Redis 固定窗口。用户详情在确认未删除后可读 60～75 秒展示缓存，提交后删除。就绪探针已检查 Redis。全局 Throttler 未做）。前置：[04](../04-user-management/implementation.md)～[06](../06-authorization/implementation.md)。命令默认project/。
 
 ## 1. 阶段目标
 
@@ -130,6 +130,8 @@ Node storage调用 `redis.eval(script, 1, scopedKey, ttl, limit, blockDuration)`
 
 ### 5.5 演练故障与恢复
 
+2026-11-16 就绪探针已分开。展示缓存失败仍回源 MySQL。登录来源限流在 Redis 失败时返回 503，不核对密码。停掉 Redis 的故障演练见本次变更记录；没有给普通路由加全局限流。
+
 - 目标：明确每种依赖故障的用户行为。
 - 文件：Redis/cache/throttler测试、08的health readiness集成、部署故障记录。
 - 操作：展示缓存故障fail-open回MySQL，但权限从不放开；共享限流Redis故障：本方案普通及认证入口都返回503（存活探针排除），避免失去全局预算引发DB洪峰；05的MySQL账户桶是额外兜底，不宣称能自动替代所有路由的分布式限流。Redis恢复后按需恢复ready，重试有限，切换期允许计数重新开始但记录窗口。
@@ -159,7 +161,7 @@ Node storage调用 `redis.eval(script, 1, scopedKey, ttl, limit, blockDuration)`
 - [ ] 两实例共享限流，毫秒/秒、封禁TTL和Retry-After正确。
 - [ ] 缓存/安全依赖故障策略、live/ready状态符合约定。
 
-验收记录：未把阶段标为已验证。2026-11-15 本地启动日志出现 `Redis 连接成功`。一次不存在用户的登录返回 401，`code` 为 `UNAUTHENTICATED`。2026-11-16 临时账号的详情缓存命中、更新后删除、坏 JSON 回源和软删除后 404 已本地 HTTP 验收，临时数据已删除。未做两实例并发，也没有停掉 Redis 演练故障。
+验收记录：未把阶段标为已验证。2026-11-15 本地启动日志出现 `Redis 连接成功`。一次不存在用户的登录返回 401，`code` 为 `UNAUTHENTICATED`。2026-11-16 临时账号的详情缓存命中、更新后删除、坏 JSON 回源和软删除后 404 已本地 HTTP 验收，临时数据已删除。同一天短暂停止本地 Redis 后，`GET /health/live` 为 200，`GET /health/ready` 和一次登录为 503，`code` 为 `SERVICE_UNAVAILABLE`。Redis 恢复后就绪探针回到 200。未做两实例并发，也没有给普通路由加全局限流。
 
 ## 9. 常见问题
 

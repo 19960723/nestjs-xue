@@ -220,6 +220,23 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * 就绪检查用的 PING。失败返回 false，不抛错，也不把地址写进日志。
+   * 命令超时沿用客户端的 1 秒。
+   */
+  async ping(): Promise<boolean> {
+    const client = this.client;
+    if (!client) {
+      return false;
+    }
+    try {
+      return (await client.ping()) === 'PONG';
+    } catch {
+      this.logger.warn('Redis 就绪检查失败');
+      return false;
+    }
+  }
+
   /** 键只含环境、范围和整数 id。id 不是 1～2147483647 时不访问 Redis。 */
   private cacheKey(scope: CacheScope, id: number): string | null {
     if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647) {
