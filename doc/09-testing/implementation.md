@@ -1,8 +1,10 @@
 # 阶段 09：测试与代码质量
 
-更新：2026-10-23。文档状态：已更新；功能状态：计划中（最小工具迁移已在 01 本地验证）。完整分层/CI 依赖 02～08。阶段 01 当时为 27 项单元测试与 5 项 HTTP E2E 通过，属于历史结果，不代表接入数据库后当前代码已复验；其余分层测试、覆盖率门禁和 CI 仍计划中。
+更新：2026-11-17。文档状态：已更新；功能状态：进行中（最小工具已在 01 验证。第一批认证与授权安全场景已在隔离库通过；覆盖率与 CI 仍未做）。完整分层/CI 依赖 02～08。阶段 01 当时为 27 项单元测试与 5 项 HTTP E2E 通过，属于历史结果，不代表接入数据库后当前代码已复验。
 
-2026-10-23：Swagger 局部测试曾通过，随后按用户要求删除新增测试文件，当前暂不推进或运行测试。保留既有工具配置；下方为恢复验证后的实施要求，文档更新不自动恢复测试执行。历史记录见 [CHG-20261023-001](../changelog/2026-10-23-001-swagger-decorators.md)。
+2026-10-23：Swagger 局部测试曾通过，随后按用户要求删除新增测试文件。该次暂停只保留为历史，不阻止 2026-11-17 已授权的第一批集成测试。历史记录见 [CHG-20261023-001](../changelog/2026-10-23-001-swagger-decorators.md)。
+
+2026-11-17：用户授权执行第一批。测试进程只接受 `TEST_DATABASE_URL`，库名必须是 `init_xue_test_<runid>`，主机只允许 `127.0.0.1` 或 `localhost`。准备脚本从本地配置派生新库并执行已有迁移的 `migrate deploy`，不 `reset`、不删除开发库。断言只看状态、`code` 和 `requestId`。
 
 ## 1. 阶段目标
 
@@ -106,7 +108,7 @@ export default {
 - 文件：`project/test/{database,users,auth,authorization,redis}.integration-spec.ts`，`test/setup-test-env.ts`，隔离服务Compose/CI配置。
 - 操作：每job独立测试库和Redis前缀；setup先校验专用TEST_DATABASE_URL库名/主机，再给迁移进程传入DATABASE_URL运行已提交`migrate deploy`+显式seed，随后加载应用。不得让测试进程意外读个人.env。数据库清理仅限本次拥有的数据；使用唯一runid隔离fixture，外键依赖逆序清理，不关FK绕过测试。
 - 必测：唯一冲突并发、批量回滚、软删唯一保留、Auth刷新条件消费/重放撤销提交、并发改密/退出/禁用、两个管理员竞争、Redis脚本TTL/共享配额、审计失败业务回滚。
-- 命令：用户确认隔离环境后运行 `pnpm run test:integration`，每次保留版本、迁移列表和脱敏失败信息。
+- 命令：用户确认隔离环境后运行 `pnpm run test:integration`，每次保留版本、迁移列表和脱敏失败信息。第一批入口是 `pnpm run test:integration:auth`，见 5.6。
 - 预期/验证：同真实MySQL隔离级别与adapter执行；refresh重放事务提交后session.revokedAt可查询到；测试失败也close Prisma/Redis，CI没有悬挂连接。
 
 ### 5.4 HTTP E2E与OpenAPI回归
@@ -136,6 +138,18 @@ export default {
 - 命令：依次运行上述package scripts；CI用与本地一致命令，不通过跳过lint/test获得绿灯。依赖审计结果审阅并记录，不能自动`audit fix --force`改栈。
 - 预期/验证：故意引入类型/格式/测试失败都阻断job，fork PR不获得生产Secrets；缓存只缓存pnpm store且key含锁文件，不能缓存宿主node_modules到不同平台。
 
+### 5.6 第一批：认证与授权安全场景
+
+2026-11-17 已授权，只回归已经手工验收过的行为，不改业务代码。
+
+- 目标：登录失败不可区分、默认拒绝、撤权立即生效、Refresh 轮换与重放、退出和改密后旧凭据失效、最后一名管理员不能被删除或清空角色。
+- 文件：`project/test/setup-integration-env.ts`、`project/test/auth-security.integration-spec.ts`、`project/scripts/run-auth-integration.mjs`、`project/jest.integration.config.mjs`。集成配置改为加载专用环境，不再使用会指向开发库名的占位地址。Jest 的扫描根设为 `.test-dist/test`，否则在 Windows 上从项目根扫描会漏掉这个目录。
+- 隔离：`TEST_DATABASE_URL` 在导入应用前写入 `DATABASE_URL`。库名匹配 `init_xue_test_` 加小写字母或数字；主机只允许本机。名称不符直接失败。Redis 使用本机地址，键带 `NODE_ENV=test`。JWT 使用测试专用密钥。
+- 数据：准备脚本只对测试库 `migrate deploy` 和权限种子。夹具用户在用例结束后删除；审计行先于用户删除。不 `drop`、不 `reset` 开发库。
+- 断言：状态码、`code`、非空 `requestId`。失败输出不带密码、令牌或连接串。
+- 命令：在 `project/` 执行 `pnpm run test:integration:auth`。
+- 不做：业务单测、OpenAPI 对比、全局限流、覆盖率门禁和 CI。
+
 ## 6. 数据库设计
 
 不新增业务Schema；测试fixture/库是隔离数据。测试迁移只能验证仓库已有migration，不能使用db push绕过历史。若测试暴露数据结构问题，回到所属阶段更新Schema/迁移说明/ADR后再修复，不在测试setup偷偷改生产模型。
@@ -154,7 +168,7 @@ export default {
 - [ ] 测试库保护和清理范围验证，未碰开发/生产数据。
 - [ ] CI从干净checkout运行通过，失败能阻断合并，未暴露生产Secrets。
 
-验收记录：5.1 最小工具迁移的验收见 [阶段01第8节](../01-initialization/implementation.md#8-验收标准)；5.2～5.5 的完整业务分层、数据库/Redis 集成、覆盖率与 CI 尚未验收，不据此标记阶段09已完成。
+验收记录：5.1 最小工具迁移的验收见 [阶段01第8节](../01-initialization/implementation.md#8-验收标准)。5.6 于 2026-11-17 在 Windows、Node 24.22.2、工作目录 `project/` 执行 `pnpm run test:integration:auth`，退出码 0。隔离库 `init_xue_test_mwkt4i9d` 位于 `127.0.0.1`，应用了已有 9 份迁移。9 项测试通过：登录失败不可区分、401/403、撤权立即生效、Refresh 轮换与重放、退出、全部退出、改密失效、最后一名管理员保护。输出未包含密码、令牌或连接串。夹具用户已删除。阶段 09 的单测、覆盖率、CI 和 `test:e2e` 的 Windows 扫描问题未纳入本次，不据此标记阶段 09 已完成。证据见 [CHG-20261117-001](../changelog/2026-11-17-001-auth-integration.md)。
 
 ## 9. 常见问题
 
