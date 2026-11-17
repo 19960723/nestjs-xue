@@ -19,12 +19,12 @@
 | 01 | [环境与初始化](01-initialization/implementation.md) | 已更新 | 已验证（本地） | 环境盘点 |
 | 02 | [MySQL与Prisma7](02-database/implementation.md) | 已更新 | 进行中（DATABASE_URL 已统一；本地七份迁移已应用且与 Schema 一致，shadow 与数据库业务未验收） | 01 |
 | 03 | [API规范与可观测性基础](03-api-standards/implementation.md) | 已更新 | 进行中（统一包装/异常/requestId 已实现，HTTP 未验收） | 01/02 |
-| 04 | [用户管理CRUD](04-user-management/implementation.md) | 已更新 | 进行中（资料字段、首次设密、启用/停用和单条软删已实现；批量删除未实现） | 02/03 |
+| 04 | [用户管理CRUD](04-user-management/implementation.md) | 已更新 | 进行中（资料字段、首次设密、启用/停用和单条软删已实现；创建和首次设密与审计同一事务；批量删除未实现） | 02/03 |
 | 05 | [身份认证与会话](05-authentication/implementation.md) | 已更新 | 进行中（登录、Guard、刷新、退出、修改密码和登录失败限制已本地 HTTP 验收；重置未实现） | 04 |
-| 06 | [RBAC授权](06-authorization/implementation.md) | 已更新 | 进行中（权限 Guard、目录和角色分配已本地 HTTP 验收；已有一名有效管理员；permissionVersion 未做） | 05 |
+| 06 | [RBAC授权](06-authorization/implementation.md) | 已更新 | 进行中（权限 Guard、目录和角色分配已本地 HTTP 验收；角色资料和权限替换与审计同一事务；已有一名有效管理员；permissionVersion 未做） | 05 |
 | 07 | [Redis缓存与共享限流](07-redis/implementation.md) | 已更新 | 进行中（单一客户端、登录来源限流和用户详情缓存已接入；全局限流与故障演练未做） | 04～06 |
-| 08 | [公共能力与审计](08-common/implementation.md) | 已更新 | 进行中（探针、安全边界、JSON 日志、审计、默认关闭的过期清理和文件上传已接入） | 02～07 |
-| 09 | [测试质量与CI](09-testing/implementation.md) | 已更新 | 进行中（认证与授权 9 项安全场景已在隔离库通过；覆盖率与 CI 未做） | 01～08 |
+| 08 | [公共能力与审计](08-common/implementation.md) | 已更新 | 进行中（探针、安全边界、JSON 日志、审计、默认关闭的过期清理和文件上传已接入；创建、设密和角色变更已纳入同一事务） | 02～07 |
+| 09 | [测试质量与CI](09-testing/implementation.md) | 已更新 | 进行中（认证与授权 18 项安全场景已在隔离库通过；覆盖率与 CI 未做） | 01～08 |
 | 10 | [部署与运维](10-deployment/implementation.md) | 已编写 | 计划中 | 07～09 |
 
 状态只用「计划中、进行中、已实现、已验证」描述功能；文档写完不表示对应功能已实现。已验证必须附日期/版本/命令/结果。阶段 01 的版本、启动与质量验收见其第 8 节；环境盘点保留实施前快照与实施后摘要。历史验收仅覆盖记录当时的代码及范围，后续接入数据库后的启动与 E2E 状态仍需复验；Swagger 局部验证也不代表整个阶段完成。

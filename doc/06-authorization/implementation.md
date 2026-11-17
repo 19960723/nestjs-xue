@@ -1,6 +1,6 @@
 # 阶段 06：RBAC 权限系统
 
-更新：2026-11-15。文档状态：已更新；功能状态：进行中（角色资源 CRUD、权限 Guard、权限目录和角色分配已实现，相关切片已本地 HTTP 验收。已有一名有效管理员。没有 permissionVersion）。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
+更新：2026-11-18。文档状态：已更新；功能状态：进行中（角色资源 CRUD、权限 Guard、权限目录和角色分配已实现，相关切片已本地 HTTP 验收。角色创建、修改、删除和替换权限与审计在同一事务。已有一名有效管理员。没有 permissionVersion）。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
 
 ## 1. 阶段目标
 

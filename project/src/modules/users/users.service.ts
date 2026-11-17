@@ -21,7 +21,7 @@ import { userPublicSelect } from './user.select.js';
  * 首次设密只在密码仍为空、未删除且启用时写入；哈希在更新前计算。
  * 删除写入 deletedAt，并撤销该用户全部会话。已删除用户按不存在处理。
  * 详情在确认未删除后可读短时展示缓存。资料、状态、设密和删除提交后再删缓存。
- * 启用、停用和软删除成功时在同一事务写审计，不记录密码或令牌。
+ * 创建、首次设密、启用、停用和软删除成功时在同一事务写审计，不记录密码或令牌。
  */
 @Injectable()
 export class UsersService {
@@ -78,19 +78,28 @@ export class UsersService {
     };
   }
 
-  /** 创建资料，不写密码。新用户在首次设密前不能登录。 */
-  async create(dto: CreateUserDto) {
+  /** 创建资料，不写密码。新用户在首次设密前不能登录。成功时同一事务写审计。 */
+  async create(actorId: number, dto: CreateUserDto) {
     try {
-      return await this.prisma.user.create({
-        data: {
-          email: dto.email,
-          username: dto.username,
-          nickname: dto.nickname,
-          phone: dto.phone,
-          sex: dto.sex,
-          avatar: dto.avatar,
-        },
-        select: userPublicSelect,
+      return await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            email: dto.email,
+            username: dto.username,
+            nickname: dto.nickname,
+            phone: dto.phone,
+            sex: dto.sex,
+            avatar: dto.avatar,
+          },
+          select: userPublicSelect,
+        });
+        await this.audit.record(tx, {
+          actorUserId: actorId,
+          action: AuditAction.userCreate,
+          targetType: 'user',
+          targetId: user.id,
+        });
+        return user;
       });
     } catch (error: unknown) {
       this.handleWriteError(error);
@@ -191,19 +200,9 @@ export class UsersService {
    * 没写上时再读状态，区分不存在、已禁用和已设密；读和重试之间仍可能被别人设密。
    * 写入成功后删除展示缓存，返回值改从 MySQL 读。
    */
-  async setInitialPassword(id: number, password: string) {
+  async setInitialPassword(actorId: number, id: number, password: string) {
     const passwordHash = await this.passwords.hash(password);
-    const updated = await this.prisma.user.updateMany({
-      where: {
-        id,
-        password: null,
-        deletedAt: null,
-        status: 1,
-      },
-      data: { password: passwordHash },
-    });
-
-    if (updated.count === 1) {
+    if (await this.saveInitialPassword(actorId, id, passwordHash)) {
       await this.redis.forget('users:profile', id);
       return this.requirePublic(id);
     }
@@ -229,22 +228,41 @@ export class UsersService {
       throw new ConflictException('密码已设置');
     }
 
-    const retried = await this.prisma.user.updateMany({
-      where: {
-        id,
-        password: null,
-        deletedAt: null,
-        status: 1,
-      },
-      data: { password: passwordHash },
-    });
-
-    if (retried.count === 1) {
+    if (await this.saveInitialPassword(actorId, id, passwordHash)) {
       await this.redis.forget('users:profile', id);
       return this.requirePublic(id);
     }
 
     throw new ConflictException('密码已设置');
+  }
+
+  /** 首次设密与审计同一事务。条件未命中时不写审计，哈希也不落库。 */
+  private async saveInitialPassword(
+    actorId: number,
+    id: number,
+    passwordHash: string,
+  ): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.user.updateMany({
+        where: {
+          id,
+          password: null,
+          deletedAt: null,
+          status: 1,
+        },
+        data: { password: passwordHash },
+      });
+      if (updated.count !== 1) {
+        return false;
+      }
+      await this.audit.record(tx, {
+        actorUserId: actorId,
+        action: AuditAction.userSetPassword,
+        targetType: 'user',
+        targetId: id,
+      });
+      return true;
+    });
   }
 
   /**

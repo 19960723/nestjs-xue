@@ -20,6 +20,12 @@ export const AuditAction = {
   userDisable: 'users.disable',
   userDelete: 'users.delete',
   userRoles: 'users.assign-roles',
+  userCreate: 'users.create',
+  userSetPassword: 'users.set-password',
+  roleCreate: 'roles.create',
+  roleUpdate: 'roles.update',
+  roleDelete: 'roles.delete',
+  rolePermissions: 'roles.assign-permissions',
   changePassword: 'auth.change-password',
   logout: 'auth.logout',
   logoutAll: 'auth.logout-all',
@@ -44,7 +50,7 @@ export class AuditService {
     input: {
       actorUserId: number;
       action: AuditActionName;
-      targetType: 'user' | 'session';
+      targetType: 'user' | 'session' | 'role';
       targetId: number;
     },
   ): Promise<void> {

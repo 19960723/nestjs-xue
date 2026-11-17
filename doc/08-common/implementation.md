@@ -55,7 +55,7 @@ schedule已核实12.0.2，后续手动 `pnpm add --save-exact @nestjs/schedule@1
 
 ### 5.3 实现审计和跨表事务
 
-2026-11-16 已接入成功写入，并增加只读查询。启用、停用、软删除、角色替换、修改密码、当前退出和全部退出，在各自业务事务里写 `audit_logs`。`GET /audit-logs` 分页返回这些字段，需要 `audit:read`。可按动作、操作者和起止时间筛选。开始时间晚于结束时间时返回 400。没有修改或删除接口。原密码错误不写成功审计。登录失败和权限拒绝另写一条 `security.rejected` 安全日志，不进入 `audit_logs`，也不保存用户名、密码、哈希或令牌。
+2026-11-16 已接入成功写入，并增加只读查询。启用、停用、软删除、用户角色替换、修改密码、当前退出和全部退出，在各自业务事务里写 `audit_logs`。2026-11-18 补上创建用户、首次设密、角色创建、角色修改、角色删除和替换角色权限；对象类型增加 `role`。这些动作名是 `users.create`、`users.set-password`、`roles.create`、`roles.update`、`roles.delete`、`roles.assign-permissions`。冲突和未写入的路径不记成功审计。`GET /audit-logs` 分页返回这些字段，需要 `audit:read`。可按动作、操作者和起止时间筛选。开始时间晚于结束时间时返回 400。没有修改或删除接口。原密码错误不写成功审计。登录失败和权限拒绝另写一条 `security.rejected` 安全日志，不进入 `audit_logs`，也不保存用户名、密码、哈希或令牌。
 
 - 目标：关键变更与其审计共成败。
 - 文件：新增 `project/src/modules/audit/{audit.module,audit.service,audit.repository,audit.controller}.ts`；修改users/auth/authorization写用例及Schema。

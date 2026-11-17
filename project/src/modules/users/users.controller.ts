@@ -56,8 +56,11 @@ export class UsersController {
   @ApiCreatedResponse({ description: '用户创建成功', type: User })
   @ApiBadRequestResponse({ description: '请求字段不符合校验规则' })
   @ApiConflictResponse({ description: '邮箱已被使用' })
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
+  create(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() createUserDto: CreateUserDto,
+  ) {
+    return this.usersService.create(actor.id, createUserDto);
   }
 
   @Get()
@@ -87,10 +90,11 @@ export class UsersController {
   @ApiNotFoundResponse({ description: '用户不存在' })
   @ApiConflictResponse({ description: '用户已禁用或密码已设置' })
   setInitialPassword(
+    @CurrentUser() actor: AuthenticatedUser,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: SetInitialPasswordDto,
   ) {
-    return this.usersService.setInitialPassword(id, dto.password);
+    return this.usersService.setInitialPassword(actor.id, id, dto.password);
   }
 
   @Get(':id')

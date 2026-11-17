@@ -54,6 +54,7 @@ export class AuthorizationService {
   /**
    * 用传入的权限 ID 替换角色的全部权限。空数组表示清空。
    * 系统角色拒绝修改。停用或不存在的权限视为非法关联。
+   * 替换成功后同一事务写审计，不记录权限名单。
    */
   async replaceRolePermissions(
     actorId: number,
@@ -90,6 +91,12 @@ export class AuthorizationService {
           })),
         });
       }
+      await this.audit.record(tx, {
+        actorUserId: actorId,
+        action: AuditAction.rolePermissions,
+        targetType: 'role',
+        targetId: roleId,
+      });
 
       return tx.permission.findMany({
         where: { roles: { some: { roleId } } },

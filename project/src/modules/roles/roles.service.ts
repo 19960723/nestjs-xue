@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma/prisma.service.js';
 import { Prisma } from '../../generated/prisma/client.js';
+import { AuditAction, AuditService } from '../audit/audit.service.js';
 import { CreateRoleDto } from './dto/create-role.dto.js';
 import { QueryRoleDto } from './dto/query-role.dto.js';
 import { UpdateRoleDto } from './dto/update-role.dto.js';
@@ -15,10 +16,14 @@ import { rolePublicSelect } from './role.select.js';
  * 写入冲突交给数据库唯一索引，再映射成 409，避免先查再写的并发空窗。
  * 删除前在同一事务里检查是否已分配给用户。
  * 系统角色不能删除、禁用或修改编码，权限集由种子维护。
+ * 创建、修改和删除成功时在同一事务写审计。
  */
 @Injectable()
 export class RolesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   /** 只有 code 有唯一索引，所以 P2002 一律视为编码冲突，不把 name 重复当成约束。 */
   private handleWriteError(error: unknown): never {
@@ -32,18 +37,27 @@ export class RolesService {
     throw error;
   }
 
-  /** 写入角色。编码冲突由唯一索引兜底，经 handleWriteError 变成 409。 */
-  async create(createRoleDto: CreateRoleDto) {
+  /** 写入角色。编码冲突由唯一索引兜底，经 handleWriteError 变成 409。成功时同一事务写审计。 */
+  async create(actorId: number, createRoleDto: CreateRoleDto) {
     try {
-      return await this.prisma.role.create({
-        data: {
-          name: createRoleDto.name,
-          code: createRoleDto.code,
-          description: createRoleDto.description,
-          status: createRoleDto.status,
-          sort: createRoleDto.sort,
-        },
-        select: rolePublicSelect,
+      return await this.prisma.$transaction(async (tx) => {
+        const role = await tx.role.create({
+          data: {
+            name: createRoleDto.name,
+            code: createRoleDto.code,
+            description: createRoleDto.description,
+            status: createRoleDto.status,
+            sort: createRoleDto.sort,
+          },
+          select: rolePublicSelect,
+        });
+        await this.audit.record(tx, {
+          actorUserId: actorId,
+          action: AuditAction.roleCreate,
+          targetType: 'role',
+          targetId: role.id,
+        });
+        return role;
       });
     } catch (error: unknown) {
       this.handleWriteError(error);
@@ -100,7 +114,7 @@ export class RolesService {
   }
 
   /** 部分更新。先确认角色存在，编码冲突同样走唯一索引。系统角色拒绝改编码和禁用。 */
-  async update(id: number, updateRoleDto: UpdateRoleDto) {
+  async update(actorId: number, id: number, updateRoleDto: UpdateRoleDto) {
     const current = await this.findOne(id);
     if (current.isSystem) {
       if (
@@ -115,16 +129,25 @@ export class RolesService {
     }
 
     try {
-      return await this.prisma.role.update({
-        where: { id },
-        data: {
-          name: updateRoleDto.name,
-          code: updateRoleDto.code,
-          description: updateRoleDto.description,
-          status: updateRoleDto.status,
-          sort: updateRoleDto.sort,
-        },
-        select: rolePublicSelect,
+      return await this.prisma.$transaction(async (tx) => {
+        const role = await tx.role.update({
+          where: { id },
+          data: {
+            name: updateRoleDto.name,
+            code: updateRoleDto.code,
+            description: updateRoleDto.description,
+            status: updateRoleDto.status,
+            sort: updateRoleDto.sort,
+          },
+          select: rolePublicSelect,
+        });
+        await this.audit.record(tx, {
+          actorUserId: actorId,
+          action: AuditAction.roleUpdate,
+          targetType: 'role',
+          targetId: role.id,
+        });
+        return role;
       });
     } catch (error: unknown) {
       this.handleWriteError(error);
@@ -132,7 +155,7 @@ export class RolesService {
   }
 
   /** 未分配给用户时物理删除。检查和删除在同一事务，已分配则 409 并回滚。 */
-  async remove(id: number) {
+  async remove(actorId: number, id: number) {
     await this.prisma.$transaction(async (tx) => {
       const role = await tx.role.findUnique({
         where: { id },
@@ -157,6 +180,12 @@ export class RolesService {
 
       await tx.role.delete({
         where: { id },
+      });
+      await this.audit.record(tx, {
+        actorUserId: actorId,
+        action: AuditAction.roleDelete,
+        targetType: 'role',
+        targetId: id,
       });
     });
   }

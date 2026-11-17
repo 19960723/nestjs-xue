@@ -24,6 +24,8 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator.js';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.js';
 import { RolesService } from './roles.service.js';
 import { CreateRoleDto } from './dto/create-role.dto.js';
 import { QueryRoleDto } from './dto/query-role.dto.js';
@@ -50,8 +52,11 @@ export class RolesController {
   @ApiCreatedResponse({ description: '角色创建成功', type: Role })
   @ApiBadRequestResponse({ description: '请求字段不符合校验规则' })
   @ApiConflictResponse({ description: '角色编码已存在' })
-  create(@Body() createRoleDto: CreateRoleDto) {
-    return this.rolesService.create(createRoleDto);
+  create(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() createRoleDto: CreateRoleDto,
+  ) {
+    return this.rolesService.create(actor.id, createRoleDto);
   }
 
   @Get()
@@ -89,10 +94,11 @@ export class RolesController {
     description: '角色编码已存在，或系统角色被修改编码、禁用',
   })
   update(
+    @CurrentUser() actor: AuthenticatedUser,
     @Param('id', ParseIntPipe) id: number,
     @Body() updateRoleDto: UpdateRoleDto,
   ) {
-    return this.rolesService.update(id, updateRoleDto);
+    return this.rolesService.update(actor.id, id, updateRoleDto);
   }
 
   @Delete(':id')
@@ -108,7 +114,10 @@ export class RolesController {
   @ApiConflictResponse({
     description: '系统角色不能删除，或角色已分配给用户',
   })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.rolesService.remove(id);
+  remove(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.rolesService.remove(actor.id, id);
   }
 }

@@ -1,6 +1,6 @@
 # 阶段 04：用户管理 CRUD
 
-更新：2026-11-16。文档状态：已更新；功能状态：进行中（资料字段已接入；`POST /users/:id/password` 只在密码为空时写入哈希；`PATCH /users/:id/status` 可启用或停用；`DELETE /users/:id` 写入 `deletedAt` 并撤销会话。用户详情可短时走 Redis 展示缓存。创建和资料更新仍不接收密码和状态。批量删除未实现）。前置：[02](../02-database/implementation.md)、[03](../03-api-standards/implementation.md)。本阶段接口仅在隔离本地回环地址开发，05/06完成后才能对外开放。
+更新：2026-11-18。文档状态：已更新；功能状态：进行中（资料字段已接入；`POST /users/:id/password` 只在密码为空时写入哈希；`PATCH /users/:id/status` 可启用或停用；`DELETE /users/:id` 写入 `deletedAt` 并撤销会话。用户详情可短时走 Redis 展示缓存。创建和资料更新仍不接收密码和状态。创建和首次设密与审计在同一事务。批量删除未实现）。前置：[02](../02-database/implementation.md)、[03](../03-api-standards/implementation.md)。本阶段接口仅在隔离本地回环地址开发，05/06完成后才能对外开放。
 
 ## 1. 阶段目标
 
@@ -123,7 +123,7 @@ return { items, total, page, pageSize };
 | PATCH | /users/:id | id + UpdateUserDto → 200 User | 400 校验失败、404、409 |
 | DELETE | /users/:id | id → 200 统一包装且 `data: null`，写入 `deletedAt` 并撤销会话 | 403 删除自己、404、409 最后一名有效管理员 |
 
-User 查询使用 `userPublicSelect`：id/username/nickname/avatar/email/phone/sex/status/lastLoginAt/createdAt/updatedAt。username、nickname、avatar、phone、sex、lastLoginAt 可为 null。不返回 password、deletedAt，也不 include roles。创建/更新只写上述资料字段，不写 password，status 用数据库默认值。首次设密在事务外计算 Argon2id 哈希，再用 `password` 为空、`deletedAt` 为空且 `status` 为 1 的条件更新；响应仍是公开字段。列表关键词匹配用户名、昵称或邮箱。路径 ID 使用 `ParseIntPipe`（非法 ID 400）。列表、详情和资料更新都跳过已删除用户。删除为软删除。这些接口需要 Access 和对应权限。数据库并发行为未验收。
+User 查询使用 `userPublicSelect`：id/username/nickname/avatar/email/phone/sex/status/lastLoginAt/createdAt/updatedAt。username、nickname、avatar、phone、sex、lastLoginAt 可为 null。不返回 password、deletedAt，也不 include roles。创建/更新只写上述资料字段，不写 password，status 用数据库默认值。首次设密在事务外计算 Argon2id 哈希，再用 `password` 为空、`deletedAt` 为空且 `status` 为 1 的条件更新；条件命中时，哈希写入和 `users.set-password` 审计在同一事务。创建用户同样在同一事务写 `users.create`。响应仍是公开字段。列表关键词匹配用户名、昵称或邮箱。路径 ID 使用 `ParseIntPipe`（非法 ID 400）。列表、详情和资料更新都跳过已删除用户。删除为软删除。这些接口需要 Access 和对应权限。数据库并发行为未验收。
 
 ### 阶段目标契约（后续实施）
 

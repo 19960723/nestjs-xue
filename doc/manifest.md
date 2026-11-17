@@ -46,6 +46,8 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-11-18-001-audit-gaps.md](changelog/2026-11-18-001-audit-gaps.md)
+- [doc/changelog/2026-11-17-002-auth-failure-tests.md](changelog/2026-11-17-002-auth-failure-tests.md)
 - [doc/changelog/2026-11-17-001-auth-integration.md](changelog/2026-11-17-001-auth-integration.md)
 - [doc/changelog/2026-11-16-009-file-upload.md](changelog/2026-11-16-009-file-upload.md)
 - [doc/changelog/2026-11-16-008-cleanup.md](changelog/2026-11-16-008-cleanup.md)
