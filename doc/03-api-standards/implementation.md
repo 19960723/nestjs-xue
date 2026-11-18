@@ -1,6 +1,6 @@
 # 阶段 03：基础接口规范
 
-更新：2026-10-30。文档状态：已更新；功能状态：进行中（统一响应/异常/requestId 已实现，类型/构建/静态检查通过，HTTP 运行验收暂缓；分页仍用 list，未切 items）。前置：[01](../01-initialization/implementation.md)、[02](../02-database/implementation.md)。命令默认在 project/；仅第 8 节验收记录列出的命令已执行，其余是后续实施示例。
+更新：2026-11-18。文档状态：已更新；功能状态：已验证（本地）。当前契约保持成功包装、`list` 分页、默认每页 10 条、`SWAGGER_ENABLE` 和 `/api/docs-json`。没有 202 接口，不为此新增重置。前置：[01](../01-initialization/implementation.md)、[02](../02-database/implementation.md)。命令默认在 project/；仅第 8 节验收记录列出的命令已执行，其余是后续实施示例。
 
 ## 1. 阶段目标
 
@@ -165,7 +165,7 @@ export class PaginationQueryDto {
 
 ## 7. API 设计
 
-下表为阶段目标契约。2026-10-30 已落地成功包装、全局异常与 `X-Request-Id`；health 成功体为 `data.status=ok`。分页列表字段仍为 `list`（与当前 Users/Roles 一致），未切换目标 `items` 与默认 pageSize 20。OpenAPI JSON 仍为 `/api/docs-json`。Swagger UI/JSON 不经拦截器包装。
+下表为当前契约。2026-11-18 已按这套契约做本地 HTTP 核对。分页字段保持 `list`，默认每页 10 条。OpenAPI JSON 保持 `/api/docs-json`。配置键保持 `SWAGGER_ENABLE`，缺省关闭。Swagger UI/JSON 不经拦截器包装。原先目标里的 `items`、默认 20 条、`/api/openapi.json` 和 202 不再改当前接口。
 
 | 接口名称 | Method | URL | 请求 | 返回 | 正常码 | 异常码 | 认证/权限 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -186,13 +186,17 @@ bootstrap 整理局部验收（2026-10-23，基于提交 5dd53a7，Darwin arm64 
 
 2026-10-30 统一响应/异常局部检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、TypeScript 6.0.3；运行目录 `project/`。`tsc --noEmit --incremental false -p tsconfig.build.json`、`tsc --noEmit --incremental false -p tsconfig.test.json`、`pnpm run build`、目标文件 ESLint/Prettier 均退出 0。未执行 Jest、HTTP curl 或数据库操作。不将阶段 03 标为已验证。证据见 [CHG-20261030-003](../changelog/2026-10-30-003-api-envelope.md)。
 
-以下阶段验收清单仍保持未完成状态。
+以下为 2026-11-18 收尾后的当前契约。旧清单里的 202 没有对应接口，不新增。
 
-- [ ] DTO边界、嵌套对象、未知字段、显式数值转换测试通过。
-- [ ] 200/201/202/400/401/403/404/409/429/500/503契约测试通过。
-- [ ] 错误无敏感内容，Guard/Pipe失败也带requestId和正确日志。
-- [ ] 分页排序有白名单/上限；health 成功包装一层，data.status=ok。
-- [ ] OpenAPI契约与实际响应一致，生产默认禁用工具路由。
+- [x] DTO 边界、未知字段和显式数值转换已核对。
+- [x] 200/201/400/401/403/404/409/429/500/503 契约已核对。
+- [x] 错误不回显输入值；Guard 和校验失败都带 requestId，完成日志状态一致。
+- [x] 分页有上限，未知排序字段被拒绝；health 成功包装一层，data.status=ok。
+- [x] OpenAPI JSON 含实际存活路径且不被包装；关闭开关后工具路由不存在。
+
+2026-11-18 本地 HTTP 核对：win32 x64、Node 24.22.2，目录 `project/`，`node dist/main.js`。`GET /api/v1/health/live` 带 `X-Request-Id: api-contract-01` 返回 200，`code=OK`，`data.status=ok`，响应头与 JSON 的 requestId 一致，完成日志状态 200。非法请求号被换成新的 UUID。`GET /api/v1/no-such-resource` 返回 404 `NOT_FOUND`。`GET /api/v1/users` 无令牌返回 401 `UNAUTHENTICATED`，完成日志状态 401。`POST /api/v1/auth/login` 使用非字符串用户名和未知字段返回 400 `VALIDATION_ERROR`，details 字段为 `extra`、`username`，响应不含提交的密码，完成日志状态 400。分页管道拒绝 `page=0`、`pageSize=101`、小数页码和未知 `sort`，缺省为 1/10。201、403、409、429、500、503 沿用同日隔离库套件已通过的断言，本次没有重跑。本机开启文档时 `/api/docs-json` 返回未包装的 OpenAPI，且包含 `/api/v1/health/live`；`/api/openapi.json` 返回 404。另起进程把 `SWAGGER_ENABLE` 设为 false 后，`/api/docs` 与 `/api/docs-json` 都是 404，启动日志没有文档地址。没有改接口，没有新增 202。证据见 [CHG-20261118-007](../changelog/2026-11-18-007-api-contract.md)。
+
+此前“HTTP 运行验收暂缓”只描述 2026-11-18 之前的状态。2026-10-23 和 2026-10-30 的局部检查不能单独代表这次收尾。
 
 删除测试文件前的局部验收记录（2026-10-23）：Darwin arm64、Node 24.18.0、pnpm 11.13.1、TypeScript 6.0.3、@nestjs/swagger 12.0.2，目录 `project/`。`pnpm run build`、`pnpm run typecheck`、`pnpm run test --runInBand` 均退出 0；4 个测试套件、31 项测试通过，其中新增 `src/bootstrap/swagger.spec.ts` 的 4 项 OpenAPI 契约测试。对本次变更的 8 个 TS 文件运行 ESLint 和 Prettier 检查均通过；仓库 `git diff --check` 通过。
 

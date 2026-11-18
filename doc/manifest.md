@@ -46,6 +46,13 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-11-18-013-test-acceptance.md](changelog/2026-11-18-013-test-acceptance.md)
+- [doc/changelog/2026-11-18-012-common-acceptance.md](changelog/2026-11-18-012-common-acceptance.md)
+- [doc/changelog/2026-11-18-011-redis-acceptance.md](changelog/2026-11-18-011-redis-acceptance.md)
+- [doc/changelog/2026-11-18-010-authorization-acceptance.md](changelog/2026-11-18-010-authorization-acceptance.md)
+- [doc/changelog/2026-11-18-009-auth-acceptance.md](changelog/2026-11-18-009-auth-acceptance.md)
+- [doc/changelog/2026-11-18-008-user-acceptance.md](changelog/2026-11-18-008-user-acceptance.md)
+- [doc/changelog/2026-11-18-007-api-contract.md](changelog/2026-11-18-007-api-contract.md)
 - [doc/changelog/2026-11-18-006-database-close.md](changelog/2026-11-18-006-database-close.md)
 - [doc/changelog/2026-11-18-005-database-isolation.md](changelog/2026-11-18-005-database-isolation.md)
 - [doc/changelog/2026-11-18-004-database-acceptance.md](changelog/2026-11-18-004-database-acceptance.md)

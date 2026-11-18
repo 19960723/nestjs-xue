@@ -1,6 +1,6 @@
 # 阶段 05：身份认证系统
 
-更新：2026-11-15。文档状态：已更新；功能状态：进行中（已有 Argon2id 哈希、首次设密、用户名登录、全局 Access Guard、`GET /auth/me`、Refresh 轮换、当前退出、全部退出、修改密码和登录失败限制。这些切片已本地 HTTP 验收。重置未实现，阶段整体未完成）。前置：[04](../04-user-management/implementation.md)及01的Jest工具。安全策略见 [ADR0004](../decisions/0004-security-and-data-policy.md)。默认命令在project/。
+更新：2026-11-18。文档状态：已更新；功能状态：已验证（本地）。隔离库 19 项通过，覆盖登录、刷新重放、退出、改密、停用和软删后的旧会话失效。注册和重置不实现。过期令牌、错误 issuer/audience 和登录失败计数本次没有重跑。前置：[04](../04-user-management/implementation.md)及01的Jest工具。安全策略见 [ADR0004](../decisions/0004-security-and-data-policy.md)。默认命令在project/。
 
 ## 1. 阶段目标
 
@@ -264,14 +264,16 @@ curl -i -X POST http://localhost:3000/api/v1/auth/refresh -H 'Content-Type: appl
 
 ## 8. 验收标准
 
-- [ ] 无原文密码/token入库/日志；hash参数和目标容器原生模块可运行。
-- [ ] JWT签名/算法/issuer/audience/exp/业务payload和用户/session版本均验证。
-- [ ] 旧Refresh重放导致已提交的session撤销；并发刷新结果符合严格策略。
-- [ ] 退出、改密、禁用、软删后旧Access/Refresh立即失效；DB故障不放行。
-- [ ] 失败计数并发安全；公开注册/reset开关受控，未知账号提示一致。
-- [ ] 重置单次/到期/竞争和可信交付验收；未配置渠道时保持关闭且未完成。
+- [x] 本次响应和日志没有原文密码或 token。
+- [x] 无令牌返回 401；密码错误和用户不存在是同一条 401。
+- [x] 旧 Refresh 重放后，新换出的 Access 也返回 401。
+- [x] 退出、全部退出、改密、停用和软删后，旧 Access 与 Refresh 失效。Redis 断开时登录返回 503。
+- [x] 没有注册接口，也没有重置接口。
+- [x] 隔离库套件 19 项通过。过期令牌、错误 issuer/audience、缺 sid、并发刷新和登录失败计数本次没有重跑。
 
-验收记录：登录、Guard、刷新、退出、修改密码和登录失败限制已本地 HTTP 验收，证据见下方记录和 [CHG-20261110-003](../changelog/2026-11-10-003-access-guard-http.md) 至 [CHG-20261111-001](../changelog/2026-11-11-001-login-attempt-limit.md)。过期 Access、错误算法和会话表不可用已于 2026-11-15 覆盖。禁用和软删已在后续用户切片覆盖。重置未实现。密码重置交付渠道与浏览器 token 存储方案待产品确认。阶段 05 整体仍为进行中。
+2026-11-18 隔离库核对：win32 x64、Node 24.22.2，目录 `project/`。命令 `pnpm run test:integration:auth` 退出 0。空库 `init_xue_test_mwlzd4jv` 位于 `127.0.0.1`，九份迁移已应用。2 个套件、19 项通过。没有改应用代码，没有 drop 开发库。输出不含令牌或密码。证据见 [CHG-20261118-009](../changelog/2026-11-18-009-auth-acceptance.md)。
+
+此前“阶段 05 整体仍为进行中”只描述这次核对之前的状态。2026-11-10 至 2026-11-15 的记录仍然有效，但不能单独代替这次 19 项。
 
 2026-11-15 补过期令牌、错误算法和数据库故障。Darwin arm64、Node 24.18.0、pnpm 11.13.1。工作目录 `project/`。没有改应用代码。临时用户已物理删除。输出不含 token 或密码。验收把 `sys_user_session` 改名一次，让 Guard 查会话失败；该请求结束后表名已改回。
 

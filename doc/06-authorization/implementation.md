@@ -1,6 +1,6 @@
 # 阶段 06：RBAC 权限系统
 
-更新：2026-11-18。文档状态：已更新；功能状态：进行中（角色资源 CRUD、权限 Guard、权限目录和角色分配已实现，相关切片已本地 HTTP 验收。角色创建、修改、删除和替换权限与审计在同一事务。已有一名有效管理员。没有 permissionVersion）。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
+更新：2026-11-18。文档状态：已更新；功能状态：已验证（本地）。同日隔离库 19 项通过，权限种子再跑一次计数不变。permissionVersion 和批量删除不实现。系统角色冲突和修改自己的角色本次没有重跑。前置：[05](../05-authentication/implementation.md)。命令默认 project/，本阶段完成前不得将用户管理对外开放。
 
 ## 1. 阶段目标
 
@@ -241,7 +241,7 @@ model RolePermission {
 
 ## 7. API 设计
 
-当前角色和用户接口已经统一包装，并要求 Access 与第 5.2.1 节的权限码。公开字段仍为 id/name/code/description/status/sort/createdAt/updatedAt。创建/更新 DTO 见第 5.3.1 节，查询 DTO 见第 5.3.2 节。权限 Guard 的 HTTP 验收见第 8 节。角色资源本身的数据库业务验收仍未单独完成。
+当前角色和用户接口已经统一包装，并要求 Access 与第 5.2.1 节的权限码。公开字段仍为 id/name/code/description/status/sort/createdAt/updatedAt。创建/更新 DTO 见第 5.3.1 节，查询 DTO 见第 5.3.2 节。2026-11-18 的隔离库核对见第 8 节。
 
 以下认证、权限、`enabled/isSystem` 与 `data:null` 删除体为完整 RBAC 的目标契约，不代表当前已实现。
 
@@ -268,13 +268,15 @@ curl -i -X PUT http://localhost:3000/api/v1/users/2/roles -H "Authorization: Bea
 
 ## 8. 验收标准
 
-- [ ] 种子幂等，无默认管理员密码，bootstrap不静默提权。
-- [ ] 401/403/无元数据默认拒绝/仅认证/多权限AND测试通过。
-- [ ] 角色/权限/关联CRUD、唯一约束和全量替换原子性通过。
-- [ ] 撤权下一请求立即403；授权不依赖JWT中的旧role。
-- [ ] 系统角色/自修改/最后管理员保护覆盖单条和批量以及并发场景。
+- [x] 权限种子再跑一次计数不变，种子不创建管理员密码。
+- [x] 无令牌返回 401，无权限返回 403；有读取权限可以访问用户列表。
+- [x] 角色创建、重复编码、修改、替换权限和删除已通过，并与审计同一事务。
+- [x] 撤掉角色后，原 Access 下一次访问受保护接口返回 403。权限不放在 JWT 里。
+- [x] 最后一名管理员不能被清空。两名管理员同时互清时，一个成功、一个冲突，结束后仍有一名。permissionVersion 和批量删除不实现。
 
-完整 RBAC 验收：未执行。
+2026-11-18 隔离库核对：win32 x64、Node 24.22.2，目录 `project/`。`pnpm run test:integration:auth` 退出 0，库 `init_xue_test_mwlzd4jv`，2 个套件、19 项通过。随后在同一隔离库再执行一次权限种子，退出 0，输出仍是 `permissions 12 admin-links 12 member-links 0`。没有改应用代码，没有 drop 开发库。输出不含令牌或密码。系统角色的 409、修改自己的角色，以及多权限同时要求，仍以 2026-11-12 的记录为准，本次没有重跑。证据见 [CHG-20261118-010](../changelog/2026-11-18-010-authorization-acceptance.md)。
+
+此前“完整 RBAC 验收：未执行”只描述这次核对之前的状态。
 
 2026-10-31 Permission 模型局部检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、Prisma 7.10.1、TypeScript 6.0.3；运行目录 `project/`。占位 `DATABASE_URL` 下 `prisma validate` 与 `prisma generate --config prisma7.config.ts` 退出 0，生成 Prisma Client 7.10.1。`tsc --noEmit --incremental false -p tsconfig.build.json` 退出 0。未执行 Jest、HTTP、migrate 或真实连接，未读取个人连接串。不将阶段 06 标为已实现或已验证。证据见 [CHG-20261031-003](../changelog/2026-10-31-003-permission-model.md)。
 

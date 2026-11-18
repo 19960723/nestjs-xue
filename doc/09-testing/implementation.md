@@ -1,6 +1,6 @@
 # 阶段 09：测试与代码质量
 
-更新：2026-11-18。文档状态：已更新；功能状态：进行中（最小工具已在 01 验证。认证与授权 18 项安全场景和 1 项全局限流已在隔离库通过；覆盖率与 CI 仍未做）。完整分层/CI 依赖 02～08。阶段 01 当时为 27 项单元测试与 5 项 HTTP E2E 通过，属于历史结果，不代表接入数据库后当前代码已复验。
+更新：2026-11-18。文档状态：已更新；功能状态：进行中。隔离库 19 项已通过，类型检查和 lint 本次退出 0。格式检查未通过，覆盖率、CI、业务单测和 Windows 上的 `pnpm test` / `pnpm run test:e2e` 仍未作为验收。阶段不能标为已验证。完整分层/CI 依赖 02～08。阶段 01 当时为 27 项单元测试与 5 项 HTTP E2E 通过，属于历史结果，不代表接入数据库后当前代码已复验。
 
 2026-10-23：Swagger 局部测试曾通过，随后按用户要求删除新增测试文件。该次暂停只保留为历史，不阻止 2026-11-17 已授权的第一批集成测试。历史记录见 [CHG-20261023-001](../changelog/2026-10-23-001-swagger-decorators.md)。
 
@@ -191,6 +191,10 @@ export default {
 5.8 于 2026-11-18 在 Windows、Node 24.22.2、工作目录 `project/` 执行同一命令，退出码 0。隔离库 `init_xue_test_mwky8oew`。18 项测试通过，在 5.7 之上覆盖创建用户、首次设密、角色创建、修改、删除和替换权限的成功审计，以及这些写入在审计失败时回滚。输出未包含密码、令牌或连接串。阶段 09 仍未完成。证据见 [CHG-20261118-001](../changelog/2026-11-18-001-audit-gaps.md)。
 
 同日再次执行该命令，退出码 0。隔离库 `init_xue_test_mwlg8qub`。2 个套件、19 项通过：上述 18 项，加上两个应用实例共享全局限流额度。认证套件把 `RATE_LIMIT_MAX` 设为 10000，避免安全场景把自己限住。全局限流证据见 [CHG-20261118-002](../changelog/2026-11-18-002-rate-limit.md)。
+
+同日较晚一次仍是该命令，退出码 0。隔离库 `init_xue_test_mwlzd4jv`。2 个套件、19 项通过。这次收尾没有再跑这条命令，也没有新建测试库。
+
+2026-11-18 静态核对：win32 x64、Node 24.22.2，目录 `project/`。`pnpm run typecheck` 和 `pnpm run typecheck:test` 退出 0。`pnpm run lint` 退出 0。`pnpm run format:check` 退出 1，`src/modules/files/files.service.ts` 和 `test/auth-security.integration-spec.ts` 与 Prettier 不一致。没有改这两个文件。没有运行 `pnpm test`、`pnpm run test:cov`、`pnpm run test:e2e` 和 `pnpm run build`。仓库里没有 CI 工作流。配置单测里上传目录断言在 Windows 上仍失败，见 [CHG-20261118-002](../changelog/2026-11-18-002-rate-limit.md)。证据见 [CHG-20261118-013](../changelog/2026-11-18-013-test-acceptance.md)。
 
 ## 9. 常见问题
 

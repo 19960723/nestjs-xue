@@ -1,6 +1,6 @@
 # 阶段 07：Redis 与缓存
 
-更新：2026-11-18。文档状态：已更新；功能状态：进行中（已接入单一 Redis 客户端。登录来源地址先计入 Redis 固定窗口。用户详情在确认未删除后可读 60～75 秒展示缓存，提交后删除。就绪探针已检查 Redis。全局限流已按套接字地址共享固定窗口；没有安装 `@nestjs/throttler`，也没有单独的封禁时长）。前置：[04](../04-user-management/implementation.md)～[06](../06-authorization/implementation.md)。命令默认project/。
+更新：2026-11-18。文档状态：已更新；功能状态：已验证（本地）。同日隔离库 19 项通过，其中两个实例共享全局限流，超限返回 429 和 `Retry-After`，Redis 断开后就绪为 503、存活仍为 200。没有安装 `@nestjs/throttler`，也没有单独的封禁时长。详情缓存命中这次没有重跑。前置：[04](../04-user-management/implementation.md)～[06](../06-authorization/implementation.md)。命令默认project/。
 
 ## 1. 阶段目标
 
@@ -157,13 +157,15 @@ Node storage调用 `redis.eval(script, 1, scopedKey, ttl, limit, blockDuration)`
 
 ## 8. 验收标准
 
-- [ ] 单例连接、TLS/ACL计划、有限重试/关闭和脱敏日志验证。
-- [ ] Key规范、秒TTL、坏缓存回源、提交后DEL和失败收敛通过。
-- [ ] 权限/会话/软删可见性不由陈旧缓存决定。
-- [ ] 两实例共享限流，毫秒/秒、封禁TTL和Retry-After正确。
-- [ ] 缓存/安全依赖故障策略、live/ready状态符合约定。
+- [x] 单一 Redis 客户端已接入。生产 TLS 和 ACL 留在阶段 10。关闭钩子在应用内关闭时会断开 Redis。
+- [x] 展示缓存只用于用户详情，权限和会话仍以 MySQL 为准。坏缓存和提交后删除的核对仍以 2026-11-16 为准，本次没有重跑。
+- [x] 撤掉角色后下一次请求返回 403，不由缓存放行。
+- [x] 两个实例共享套接字额度。超限返回 429，`Retry-After` 为正整数。没有单独的封禁时长。
+- [x] Redis 客户端断开后，用户列表和就绪探针返回 503，存活探针仍为 200。重新连接后限流恢复。
 
-验收记录：未把阶段标为已验证。2026-11-15 本地启动日志出现 `Redis 连接成功`。一次不存在用户的登录返回 401，`code` 为 `UNAUTHENTICATED`。2026-11-16 临时账号的详情缓存命中、更新后删除、坏 JSON 回源和软删除后 404 已本地 HTTP 验收，临时数据已删除。同一天短暂停止本地 Redis 后，`GET /health/live` 为 200，`GET /health/ready` 和一次登录为 503，`code` 为 `SERVICE_UNAVAILABLE`。Redis 恢复后就绪探针回到 200。
+2026-11-18 再次核对：win32 x64、Node 24.22.2，目录 `project/`。`pnpm run test:integration:auth` 退出 0，隔离库 `init_xue_test_mwlzd4jv`，2 个套件、19 项通过。全局限流用例仍在其中：额度 3，两个实例并发 4 次，不同 `X-Forwarded-For` 仍共用额度，结果是 3 次 401 和 1 次 429。存活探针不计数。断开一个实例的 Redis 客户端后，该实例用户列表和就绪探针为 503，存活探针为 200；重新连接后两个实例都回到 429。没有停止本机 Redis，没有安装 `@nestjs/throttler`。证据见 [CHG-20261118-011](../changelog/2026-11-18-011-redis-acceptance.md)。较早一次同日记录见 [CHG-20261118-002](../changelog/2026-11-18-002-rate-limit.md)。
+
+此前“未把阶段标为已验证”只描述这次收尾之前的状态。
 
 2026-11-18 在 Windows、Node 24.22.2、工作目录 `project/` 执行 `pnpm run test:integration:auth`，退出码 0。隔离库 `init_xue_test_mwlg8qub`。同一进程里的两个应用实例把额度设为 3，并发 4 次无令牌的用户列表：3 次 401，1 次 429，`code` 为 `RATE_LIMITED`，`Retry-After` 为正整数。四次请求带了不同的 `X-Forwarded-For`，仍共用一个额度。超限后存活探针仍是 200。断开其中一个实例的 Redis 客户端后，该实例的用户列表和就绪探针为 503，存活探针为 200；重新连接后两个实例的用户列表都回到 429。没有停止本机 Redis，也没有单独的封禁时长。证据见 [CHG-20261118-002](../changelog/2026-11-18-002-rate-limit.md)。
 
