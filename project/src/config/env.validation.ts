@@ -35,6 +35,10 @@ export interface Environment extends Record<string, unknown> {
   AUTH_ACCOUNT_WINDOW_SECONDS: number;
   AUTH_IP_MAX_ATTEMPTS: number;
   AUTH_IP_WINDOW_SECONDS: number;
+  /** 同一套接字地址的全局限流次数。 */
+  RATE_LIMIT_MAX: number;
+  /** 全局限流固定窗口，单位秒。 */
+  RATE_LIMIT_WINDOW_SECONDS: number;
   REDIS_URL: string;
   /** 允许的浏览器来源。空数组表示不回写跨域响应头。 */
   CORS_ORIGINS: string[];
@@ -67,6 +71,10 @@ const AUTH_IP_MAX_DEFAULT = 60;
 const AUTH_IP_MAX_LIMIT = 10000;
 const AUTH_IP_WINDOW_DEFAULT = 60;
 const AUTH_IP_WINDOW_MAX = 3600;
+const RATE_LIMIT_MAX_DEFAULT = 120;
+const RATE_LIMIT_MAX_LIMIT = 10000;
+const RATE_LIMIT_WINDOW_DEFAULT = 60;
+const RATE_LIMIT_WINDOW_MAX = 3600;
 const JSON_BODY_LIMIT_DEFAULT = 1_048_576;
 const JSON_BODY_LIMIT_MIN = 1024;
 const JSON_BODY_LIMIT_MAX = 1_048_576;
@@ -254,6 +262,18 @@ export function validateEnv(env: Record<string, unknown>): Environment {
     AUTH_IP_WINDOW_DEFAULT,
     AUTH_IP_WINDOW_MAX,
   );
+  const rateLimitMax = boundedInt(
+    'RATE_LIMIT_MAX',
+    env.RATE_LIMIT_MAX,
+    RATE_LIMIT_MAX_DEFAULT,
+    RATE_LIMIT_MAX_LIMIT,
+  );
+  const rateLimitWindowSeconds = boundedInt(
+    'RATE_LIMIT_WINDOW_SECONDS',
+    env.RATE_LIMIT_WINDOW_SECONDS,
+    RATE_LIMIT_WINDOW_DEFAULT,
+    RATE_LIMIT_WINDOW_MAX,
+  );
   const redisUrl = requireRedisUrl(env.REDIS_URL);
   const corsOrigins = requireCorsOrigins(env.CORS_ORIGINS);
   const jsonBodyLimit = boundedInt(
@@ -310,6 +330,8 @@ export function validateEnv(env: Record<string, unknown>): Environment {
     AUTH_ACCOUNT_WINDOW_SECONDS: accountWindowSeconds,
     AUTH_IP_MAX_ATTEMPTS: ipMaxAttempts,
     AUTH_IP_WINDOW_SECONDS: ipWindowSeconds,
+    RATE_LIMIT_MAX: rateLimitMax,
+    RATE_LIMIT_WINDOW_SECONDS: rateLimitWindowSeconds,
     REDIS_URL: redisUrl,
     CORS_ORIGINS: corsOrigins,
     JSON_BODY_LIMIT_BYTES: jsonBodyLimit,

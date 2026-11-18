@@ -49,4 +49,6 @@ process.env.JWT_SECRET = 'test-only-jwt-secret-32chars-minimum';
 process.env.JWT_ISSUER = 'init-xue';
 process.env.JWT_AUDIENCE = 'init-xue-api';
 process.env.AUTH_LIMIT_HMAC_SECRET = 'test-only-jwt-secret-32chars-minimum';
+process.env.RATE_LIMIT_MAX = '10000';
+process.env.RATE_LIMIT_WINDOW_SECONDS = '60';
 delete process.env.SHADOW_DATABASE_URL;

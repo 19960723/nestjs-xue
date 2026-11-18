@@ -5,6 +5,7 @@ import {
   ApiServiceUnavailableResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { SkipRateLimit } from '../../infrastructure/redis/skip-rate-limit.decorator.js';
 import { Public } from '../auth/decorators/public.decorator.js';
 import { HealthService } from './health.service.js';
 
@@ -14,8 +15,9 @@ import { HealthService } from './health.service.js';
 export class HealthController {
   constructor(private readonly health: HealthService) {}
 
-  /** 探针不携带身份。这个方法跳过身份和权限校验。 */
+  /** 探针不携带身份。这个方法跳过身份、权限和全局限流。 */
   @Public()
+  @SkipRateLimit()
   @Get('live')
   @ApiOperation({ summary: '检查 HTTP 应用存活状态' })
   @ApiOkResponse({

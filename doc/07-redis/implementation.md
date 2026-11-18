@@ -1,6 +1,6 @@
 # 阶段 07：Redis 与缓存
 
-更新：2026-11-16。文档状态：已更新；功能状态：进行中（已接入单一 Redis 客户端。登录来源地址先计入 Redis 固定窗口。用户详情在确认未删除后可读 60～75 秒展示缓存，提交后删除。就绪探针已检查 Redis。全局 Throttler 未做）。前置：[04](../04-user-management/implementation.md)～[06](../06-authorization/implementation.md)。命令默认project/。
+更新：2026-11-18。文档状态：已更新；功能状态：进行中（已接入单一 Redis 客户端。登录来源地址先计入 Redis 固定窗口。用户详情在确认未删除后可读 60～75 秒展示缓存，提交后删除。就绪探针已检查 Redis。全局限流已按套接字地址共享固定窗口；没有安装 `@nestjs/throttler`，也没有单独的封禁时长）。前置：[04](../04-user-management/implementation.md)～[06](../06-authorization/implementation.md)。命令默认project/。
 
 ## 1. 阶段目标
 
@@ -83,7 +83,9 @@ async setJson(key: string, value: unknown, ttlSeconds: number): Promise<void> {
 
 ### 5.4 实现共享限流storage
 
-2026-11-15 只做了登录来源地址这一条。`LoginLimitService` 调用 `RedisService.consumeWindow`，键是 HMAC 和时间桶，不保存 IP 原文。次数和过期在同一次脚本里写入。超过 `AUTH_IP_MAX_ATTEMPTS` 返回 429。Redis 故障返回 503，不继续核对密码。账号桶仍在 MySQL。没有接入 `@nestjs/throttler`，也没有给普通路由加全局限流。
+2026-11-15 只做了登录来源地址这一条。`LoginLimitService` 调用 `RedisService.consumeWindow`，键是 HMAC 和时间桶，不保存 IP 原文。次数和过期在同一次脚本里写入。超过 `AUTH_IP_MAX_ATTEMPTS` 返回 429。Redis 故障返回 503，不继续核对密码。账号桶仍在 MySQL。
+
+2026-11-18 给除存活探针以外的 HTTP 请求加上全局限流。默认同一套接字地址每 60 秒 120 次，配置键是 `RATE_LIMIT_MAX` 和 `RATE_LIMIT_WINDOW_SECONDS`。键带环境、额度和窗口，所以只有相同额度的进程共享计数。地址只取套接字，去掉 IPv4 映射前缀，不看 `X-Forwarded-For`。超限返回 429，`Retry-After` 是窗口剩余秒数。Redis 故障返回 503，并且发生在身份校验之前。`GET /health/live` 不计数。登录来源仍是每分钟 60 次，账号桶仍是 15 分钟 10 次；没有把登录改成每分钟 10 次，也没有另加封禁时长。没有安装 `@nestjs/throttler`。下面的 Lua 和 storage 签名保留为未采用的草案。
 
 - 目标：同一用户/IP跨副本共享配额。
 - 文件：新建 `project/src/infrastructure/redis/redis-throttler.storage.ts`、Lua脚本文件；全局注册ThrottlerGuard/对应storage，修改认证端点策略。
@@ -130,7 +132,7 @@ Node storage调用 `redis.eval(script, 1, scopedKey, ttl, limit, blockDuration)`
 
 ### 5.5 演练故障与恢复
 
-2026-11-16 就绪探针已分开。展示缓存失败仍回源 MySQL。登录来源限流在 Redis 失败时返回 503，不核对密码。停掉 Redis 的故障演练见本次变更记录；没有给普通路由加全局限流。
+2026-11-16 就绪探针已分开。展示缓存失败仍回源 MySQL。登录来源限流在 Redis 失败时返回 503，不核对密码。停掉 Redis 的故障演练见本次变更记录。2026-11-18 起，普通路由在 Redis 客户端断开时也由全局限流返回 503；存活探针仍返回 200。没有停止本机 Redis。
 
 - 目标：明确每种依赖故障的用户行为。
 - 文件：Redis/cache/throttler测试、08的health readiness集成、部署故障记录。
@@ -161,7 +163,9 @@ Node storage调用 `redis.eval(script, 1, scopedKey, ttl, limit, blockDuration)`
 - [ ] 两实例共享限流，毫秒/秒、封禁TTL和Retry-After正确。
 - [ ] 缓存/安全依赖故障策略、live/ready状态符合约定。
 
-验收记录：未把阶段标为已验证。2026-11-15 本地启动日志出现 `Redis 连接成功`。一次不存在用户的登录返回 401，`code` 为 `UNAUTHENTICATED`。2026-11-16 临时账号的详情缓存命中、更新后删除、坏 JSON 回源和软删除后 404 已本地 HTTP 验收，临时数据已删除。同一天短暂停止本地 Redis 后，`GET /health/live` 为 200，`GET /health/ready` 和一次登录为 503，`code` 为 `SERVICE_UNAVAILABLE`。Redis 恢复后就绪探针回到 200。未做两实例并发，也没有给普通路由加全局限流。
+验收记录：未把阶段标为已验证。2026-11-15 本地启动日志出现 `Redis 连接成功`。一次不存在用户的登录返回 401，`code` 为 `UNAUTHENTICATED`。2026-11-16 临时账号的详情缓存命中、更新后删除、坏 JSON 回源和软删除后 404 已本地 HTTP 验收，临时数据已删除。同一天短暂停止本地 Redis 后，`GET /health/live` 为 200，`GET /health/ready` 和一次登录为 503，`code` 为 `SERVICE_UNAVAILABLE`。Redis 恢复后就绪探针回到 200。
+
+2026-11-18 在 Windows、Node 24.22.2、工作目录 `project/` 执行 `pnpm run test:integration:auth`，退出码 0。隔离库 `init_xue_test_mwlg8qub`。同一进程里的两个应用实例把额度设为 3，并发 4 次无令牌的用户列表：3 次 401，1 次 429，`code` 为 `RATE_LIMITED`，`Retry-After` 为正整数。四次请求带了不同的 `X-Forwarded-For`，仍共用一个额度。超限后存活探针仍是 200。断开其中一个实例的 Redis 客户端后，该实例的用户列表和就绪探针为 503，存活探针为 200；重新连接后两个实例的用户列表都回到 429。没有停止本机 Redis，也没有单独的封禁时长。证据见 [CHG-20261118-002](../changelog/2026-11-18-002-rate-limit.md)。
 
 ## 9. 常见问题
 

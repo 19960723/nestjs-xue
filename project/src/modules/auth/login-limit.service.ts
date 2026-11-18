@@ -3,6 +3,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AttemptLimitedException } from '../../common/exceptions/attempt-limited.exception.js';
+import { normalizeClientAddress } from '../../common/http/client-address.js';
 import { PrismaService } from '../../database/prisma/prisma.service.js';
 import { RedisService } from '../../infrastructure/redis/redis.service.js';
 import { isDatabaseError } from './database-error.js';
@@ -44,7 +45,7 @@ export class LoginLimitService {
     );
     const source = this.windowFor(
       'i:',
-      normalizeIp(ip),
+      normalizeClientAddress(ip),
       now,
       this.config.getOrThrow<number>('AUTH_IP_WINDOW_SECONDS'),
       this.config.getOrThrow<number>('AUTH_IP_MAX_ATTEMPTS'),
@@ -148,14 +149,4 @@ function exceededRetry(
   ];
   const retryAfter = Math.max(...waits);
   return retryAfter > 0 ? retryAfter : null;
-}
-
-/** 只使用直接连接地址。去掉 IPv4 映射前缀，过长或空白归入同一个未知桶。 */
-function normalizeIp(ip: string): string {
-  const trimmed = ip.trim();
-  const mapped = trimmed.startsWith('::ffff:') ? trimmed.slice(7) : trimmed;
-  if (mapped.length === 0 || mapped.length > 45) {
-    return 'unknown';
-  }
-  return mapped;
 }

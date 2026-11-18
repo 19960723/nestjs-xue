@@ -39,6 +39,8 @@ describe('validateEnv', () => {
       AUTH_ACCOUNT_WINDOW_SECONDS: 900,
       AUTH_IP_MAX_ATTEMPTS: 60,
       AUTH_IP_WINDOW_SECONDS: 60,
+      RATE_LIMIT_MAX: 120,
+      RATE_LIMIT_WINDOW_SECONDS: 60,
       REDIS_URL: 'redis://127.0.0.1:6379',
       SCHEDULE_ENABLED: false,
       UPLOAD_ENABLED: false,
@@ -119,6 +121,15 @@ describe('validateEnv', () => {
       'DATABASE_URL',
     );
   });
+
+  it.each(['0', '10001', '1.5'])(
+    'rejects invalid RATE_LIMIT_MAX=%s',
+    (value) => {
+      expect(() => validateEnv(envWithDb({ RATE_LIMIT_MAX: value }))).toThrow(
+        'RATE_LIMIT_MAX',
+      );
+    },
+  );
 
   it('does not echo rejected values in configuration errors', () => {
     expect(() =>

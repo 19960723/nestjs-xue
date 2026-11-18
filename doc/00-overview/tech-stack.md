@@ -21,7 +21,7 @@
 | 参数校验 | class-validator 0.15.1 / class-transformer 0.5.1 | DTO 运行时校验与显式转换 | TS interface 不能代替运行时 DTO class |
 | 测试 | Jest 30.5.2 + @nestjs/testing 12.1.3 + 现有 Supertest 7.3.1 | 已按用户目标从 Vitest 迁移，最小测试本地通过 | 采用 tsc 预编译测试后 Jest 执行 ESM，详见阶段 09 |
 | 质量 | ESLint 10.13.0 / typescript-eslint 8.72.0 / Prettier 3.9.10 | 静态规则、类型检查、格式各司其职 | flat config 已验证；辅助包精确版与兼容声明见下表 |
-| 限流 | @nestjs/throttler 6.7.1 | 集成 Nest Guard 与策略元数据 | TTL 按该版毫秒；共享 Redis storage 需实际匹配接口 |
+| 限流 | ioredis 6.0.0 固定窗口 | 全局限流和登录来源限流共用已安装客户端，避免内存额度按进程翻倍 | 2026-11-18 未安装 `@nestjs/throttler`。候选 6.7.1 只留在环境盘点，不作为当前实现 |
 | 定时任务 | @nestjs/schedule 12.0.2 | 简单周期清理与可控调度 | 2026-11-16 已精确安装。默认关闭；打开后每小时整点 UTC 只在一个进程执行 |
 | 文件 | multer 2.4.0 / @types/multer 2.3.0 | 接收单个 multipart 文件 | 2026-11-16 已精确安装。上传默认关闭，只收 PNG 和 JPEG 文件头 |
 | 容器 | Docker 29.6.1 / Compose 5.3.0（本机） | 可复现依赖、构建和部署 | Compose 文件不写废弃顶层 version；运行镜像单独固定 digest |

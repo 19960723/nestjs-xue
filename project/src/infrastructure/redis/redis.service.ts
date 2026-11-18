@@ -32,7 +32,7 @@ type CacheScope = 'users:profile';
 
 /**
  * 进程内唯一的 Redis 客户端。
- * 提供连接生命周期、登录来源的固定窗口计数，以及用户详情的短时展示缓存。
+ * 提供连接生命周期、登录来源和全局限流的固定窗口计数，以及用户详情的短时展示缓存。
  * 不缓存会话或权限。展示缓存失败时调用方回源，不因此放行登录。
  */
 @Injectable()
@@ -104,7 +104,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    * Redis 不可用时返回 503，调用方不得继续放行。
    */
   async consumeWindow(
-    scope: 'auth:login-ip',
+    scope: 'auth:login-ip' | 'http:global',
     keyHash: string,
     windowStart: number,
     limit: number,
@@ -126,7 +126,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     if (!client) {
       throw new ServiceUnavailableException('服务暂不可用');
     }
-    const key = `init-xue:${this.config.getOrThrow<string>('NODE_ENV')}:v1:${scope}:${keyHash}:${windowStart}`;
+    // 全局限流把额度写进键。额度不同的进程不共用计数，相同额度的进程才共享。
+    const policy = scope === 'http:global' ? `${limit}:${windowSeconds}:` : '';
+    const key = `init-xue:${this.config.getOrThrow<string>('NODE_ENV')}:v1:${scope}:${policy}${keyHash}:${windowStart}`;
     try {
       const reply: unknown = await client.eval(
         CONSUME_WINDOW,

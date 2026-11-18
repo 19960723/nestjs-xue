@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { RedisModule } from '../../infrastructure/redis/redis.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { AuditModule } from '../audit/audit.module.js';
 import { ApiGuard } from './api.guard.js';
@@ -10,11 +11,11 @@ import { UserRolesController } from './user-roles.controller.js';
 
 /**
  * 授权模块。提供权限 Guard，以及权限目录和角色分配接口。
- * 不在启动时写入角色或管理员。ApiGuard 由 AppModule 注册为唯一的全局 Guard。
+ * 不在启动时写入角色或管理员。ApiGuard 由 AppModule 注册为唯一的全局 Guard，并在身份校验前做全局限流。
  * AuditModule 给角色替换写同一事务的审计，权限拒绝只写安全日志。
  */
 @Module({
-  imports: [AuthModule, AuditModule],
+  imports: [AuthModule, AuditModule, RedisModule],
   controllers: [
     PermissionsController,
     RolePermissionsController,
