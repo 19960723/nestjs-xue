@@ -47,6 +47,8 @@ Controller处理HTTP，Service负责不变量/事务，UsersRepository负责查�
 
 ### 5.1 定义输入与安全输出
 
+本节下面的小写用户名和 254 位邮箱不再实施。当前用户名只去首尾空格、长度 1～50，保留大小写；邮箱去首尾空格并转小写，最长 100。见第 7 节。
+
 - 目标：防越权字段写入和敏感数据输出。
 - 文件：新建 `project/src/modules/users/dto/{create-user,update-user,query-users,batch-delete-users,update-user-status}.dto.ts`、`user.select.ts`、`users.repository.ts`。
 - 操作：create只收username、email、nickname；username trim/lowercase且正则`^[a-z0-9_]{3,32}$`，email trim/lowercase并IsEmail+MaxLength254，nickname最长64。禁止passwordHash/status/role/tokenVersion由create或通用patch写入。Update用PartialType再明确null策略：username/email不能null；nickname允许null清空（ValidateIf区分undefined/null），空PATCH返回400。
@@ -112,7 +114,7 @@ return { items, total, page, pageSize };
 
 ### 当前代码契约与本次 Swagger 补充（2026-10-23）
 
-现有实现已移动到 `project/src/modules/users/`，与下方阶段目标存在差异。创建必填 `email`（trim、转小写、最长 100）。可选且可空：`username`、`nickname`（出现时 1～50）、`phone`（出现时 1～20）、`sex`（0/1/2）、`avatar`（出现时 1～255）。创建和资料更新不接收 `password`。Update 通过 Swagger 的 PartialType 将资料字段改为可选，`skipNullProperties: false`，可空字段可传 `null` 清空；服务层拒绝 `email: null`。首次设密使用单独的 `POST /users/:id/password`，只接受 15～128 的密码字符串且不 trim。设密成功后可以登录。改密、Access Guard 和权限 Guard 已接入。设密接口需要 `users:update`。
+现有实现已移动到 `project/src/modules/users/`，与下方阶段目标存在差异。创建必填 `email`（trim、转小写、最长 100）。可选且可空：`username`（只 trim，保留大小写，出现时 1～50）、`nickname`（出现时 1～50）、`phone`（出现时 1～20）、`sex`（0/1/2）、`avatar`（出现时 1～255）。创建和资料更新不接收 `password`。Update 通过 Swagger 的 PartialType 将资料字段改为可选，`skipNullProperties: false`，可空字段可传 `null` 清空；服务层拒绝 `email: null`。首次设密使用单独的 `POST /users/:id/password`，只接受 15～128 的密码字符串且不 trim。设密成功后可以登录。改密、Access Guard 和权限 Guard 已接入。设密接口需要 `users:update`。
 
 | Method | 路径（前缀 /api/v1） | 当前请求与响应 | 已实现业务异常 |
 | --- | --- | --- | --- |

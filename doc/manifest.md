@@ -46,6 +46,10 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-11-18-006-database-close.md](changelog/2026-11-18-006-database-close.md)
+- [doc/changelog/2026-11-18-005-database-isolation.md](changelog/2026-11-18-005-database-isolation.md)
+- [doc/changelog/2026-11-18-004-database-acceptance.md](changelog/2026-11-18-004-database-acceptance.md)
+- [doc/changelog/2026-11-18-003-identity-normalization-status.md](changelog/2026-11-18-003-identity-normalization-status.md)
 - [doc/changelog/2026-11-18-002-rate-limit.md](changelog/2026-11-18-002-rate-limit.md)
 - [doc/changelog/2026-11-18-001-audit-gaps.md](changelog/2026-11-18-001-audit-gaps.md)
 - [doc/changelog/2026-11-17-002-auth-failure-tests.md](changelog/2026-11-17-002-auth-failure-tests.md)

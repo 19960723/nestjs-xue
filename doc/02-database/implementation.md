@@ -1,6 +1,6 @@
 # 阶段 02：数据库与 Prisma 集成
 
-更新：2026-11-16。文档状态：已更新；功能状态：进行中（CLI 与运行时已统一 DATABASE_URL；本地库与当前 Schema 一致，九份迁移均已应用；`name` 在已应用 SQL 中是删列而不是改名；shadow 库未配置，数据库业务未验收）。前置：[01](../01-initialization/implementation.md)。命令默认在 `project/`；除验收记录外均为后续示例，不重复初始化现有项目。
+更新：2026-11-18。文档状态：已更新；功能状态：已验证（本地）。五条验收已通过。本地继续使用现有 `DATABASE_URL` 和现有表，不新建 MySQL 用户，不加表。生产 TLS、服务器 UTC 和部署时的迁移账户留在[阶段 10](../10-deployment/implementation.md)。前置：[01](../01-initialization/implementation.md)。命令默认在 `project/`；除验收记录外均为后续示例，不重复初始化现有项目。
 
 2026-10-23 静态盘点补充：当前已存在 Schema、迁移文件、生成客户端及 PrismaModule/Service；2026-10-22 记录中的“仅安装依赖”描述的是当时实施范围，不代表当前仅有依赖文件。同日 Swagger 任务未连接数据库、未执行迁移或生成客户端；现有数据库实现与本阶段目标的差异及实际运行状态仍待后续核对验收。
 
@@ -8,11 +8,11 @@
 
 | 范围 | 当前事实 | 待用户实施/确认 |
 | --- | --- | --- |
-| CLI/runtime 配置 | 2026-10-31 已统一：`validateEnv` 校验 `DATABASE_URL`；`database-options.ts` 解析 adapter；CLI `prisma7.config.ts` 使用 `env('DATABASE_URL')` | 连通、TLS、shadow 库与迁移应用仍待隔离环境验收；不读取或记录真实连接值 |
+| CLI/runtime 配置 | 2026-10-31 已统一：`validateEnv` 校验 `DATABASE_URL`；`database-options.ts` 解析 adapter；CLI `prisma7.config.ts` 使用 `env('DATABASE_URL')`。2026-11-18 两条路径都连上同一本地库。临时 shadow 重放九份迁移后与 Schema 无差异 | 本地不改连接串。生产 TLS、服务器 UTC 和部署时另备的迁移账户见阶段 10 |
 | 模块 | `src/database/prisma/` 内为全局 PrismaModule；Users 依赖全局注入，2026-10-26 RolesModule 已显式导入同一个模块 | 其他消费者显式 imports 与移除全局作用域另批处理，复用单个 Provider |
 | 生成/构建 | Schema 已用 prisma-client，输出 src/generated/prisma；`build` 为 `prisma:generate && nest build` | 干净检出仍须本机有合法 DATABASE_URL 才能 generate；未宣称无环境即可构建 |
-| 模型/迁移 | User、Role、UserRole、Permission、RolePermission、UserSession、RefreshToken、AuthAttemptBucket。七份迁移，最新一份是 `20261112160000_add_role_is_system`。2026-11-12 应用后，库到 Schema 的 diff 为空 | 前两份历史 SQL 未改写。第三份已应用，其中 `name` 被删除而不是改名为 `nickname`。第四份只新建 Refresh 表并回填摘要。第五份只增加默认 0 的 `token_version`。第六份只新建登录计数表。第七份只给 `roles` 增加默认 false 的 `is_system`。shadow 库未配置，MySQL 版本、存量数据和约束行为未验收 |
-| 生命周期 | 有连接、断开及日志代码 | 连通、失败路径、资源释放和事务仍待隔离环境验收 |
+| 模型/迁移 | User、Role、UserRole、Permission、RolePermission、UserSession、RefreshToken、AuthAttemptBucket、AuditLog、StoredFile。九份迁移，最新一份是 `20261116174500_add_stored_file`。2026-11-18 开发库与隔离空库 `init_xue_test_mwlm5aco` 都已 deploy 到最新，相对 Schema 的 diff 为空。邮箱和用户名重复写入返回 1062，事务回滚后记录不留。本地会话时区是 SYSTEM/CST | 前两份历史 SQL 未改写。第三份已应用，其中 `name` 被删除而不是改名为 `nickname`。服务器时区留在阶段 10，本次不改 |
+| 生命周期 | 有连接、断开及日志代码。2026-11-18 关闭端口连接被拒绝；驱动 `end()` 后不能再查询；`app.close()` 打出 Prisma 断开日志 | Windows 从外部结束进程时收不到可处理信号，退出码 1。这不改变本阶段已通过的关闭钩子 |
 
 2026-10-23 盘点仅更新文档，未执行配置变更、generate、迁移或数据库检查。2026-10-26 为授权的角色创建开发补充本地 generate，未加载个人环境文件、连接数据库或执行迁移；命令及证据见 [CHG-20261026-002](../changelog/2026-10-26-002-role-create.md)。本地生成通过不代表迁移已应用或角色表可用。
 
@@ -143,7 +143,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
 - 目标：以SQL为可审阅的数据变更历史。
 - 文件：`project/prisma/schema.prisma`、`project/prisma/migrations/<时间>_init_user/migration.sql`；验证记录写本阶段与changelog。
-- 操作：当前已有迁移，先核对应用历史、实际表结构和存量数据，再为第 6 节目标制定增量方案；不直接替换 Schema 后生成新“初始迁移”。初始空库的目标 collation 为 `utf8mb4_0900_ai_ci`，现有 SQL 为 `utf8mb4_unicode_ci`，差异需评估比较/唯一性影响，不能仅为对齐文档改写旧 SQL。用户名限定小写 ASCII，邮箱按本项目规则 trim/lowercase；唯一性由数据库约束兜底。
+- 操作：当前已有迁移，先核对应用历史、实际表结构和存量数据，再为第 6 节目标制定增量方案；不直接替换 Schema 后生成新“初始迁移”。初始空库的目标 collation 为 `utf8mb4_0900_ai_ci`，现有 SQL 为 `utf8mb4_unicode_ci`，差异需评估比较/唯一性影响，不能仅为对齐文档改写旧 SQL。不按旧提议把用户名改成小写 ASCII。当前邮箱在接口层转小写，用户名只去首尾空格；唯一性由数据库约束兜底。
 - 命令（会写库，仅供未来确认隔离的全新空项目参考，当前项目不得直接照跑）：`pnpm exec prisma migrate dev --name init_user --create-only --config prisma7.config.ts`；审阅 SQL 后 `pnpm exec prisma migrate dev --config prisma7.config.ts`；再 generate。当前项目应在盘点后采用描述本次变化的增量迁移名；create-only 也可能访问/修改开发 shadow 库，遇到 reset 提示立即停止。
 - 预期/验证：隔离空库 `migrate deploy` 可从零重建；两次插入同账号第二次触发唯一约束；迁移文件不包含无关DROP。不要自动覆盖已有非空数据库，已有表需先调研baseline并另写ADR。
 
@@ -161,13 +161,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
 当前 Schema 以 `project/prisma/schema.prisma` 为准。`users`：可空且唯一的 `username`，可空 `password`（只存哈希）、可空 `nickname`、可空 `avatar`，必填且唯一的 `email`，可空且唯一的 `phone`，可空 `sex`，`status` 默认 1。`last_login_at`、`deleted_at`、`created_at`、`updated_at` 使用下划线列名。没有 `age`，也没有 `passwordHash`、`permissionVersion`。`tokenVersion` 已追加为默认 0 的整数，映射 `token_version`。status 仍是数字。Role、UserRole 保留，时间列同样改为下划线；UserRole 对 userId/roleId 联合唯一，外键级联删除，没有 `updated_at`。Role 增加 `isSystem`，映射 `is_system`，默认 false。Permission、RolePermission、UserSession（表 `sys_user_session`）、RefreshToken（表 `sys_refresh_token`）、AuthAttemptBucket（表 `auth_attempt_buckets`）和 AuditLog（表 `audit_logs`）、StoredFile（表 `stored_files`）已在 Schema 中。审计只保存操作者、动作、对象和 `request_id`，外键指向 `users` 且 `ON DELETE RESTRICT`。文件表只保存元数据和随机 `storage_key`，外键同样是 `ON DELETE RESTRICT`。PermissionType 当前是 `DIRECTORY`、`MENU`、`BUTTON`、`API`。没有 `permissionVersion`。
 
-用户资料接口已按 email、username、nickname、phone、sex、avatar 读写，不写 password。`DELETE /users/:id` 写入已有的 `deleted_at`，不物理删除，也没有新迁移。用户名、邮箱和手机号在软删除后仍占用唯一索引。
+用户资料接口已按 email、username、nickname、phone、sex、avatar 读写，不写 password。邮箱在接口层去首尾空格并转小写，最长 100。用户名只去首尾空格，长度 1～50，保留大小写。`password` 继续只存哈希，不改列名。这是当前契约，不再为对齐 [ADR 0004](../decisions/0004-security-and-data-policy.md) 的旧提议另做迁移。`DELETE /users/:id` 写入已有的 `deleted_at`，不物理删除，也没有新迁移。用户名、邮箱和手机号在软删除后仍占用唯一索引。
 
 迁移文件现为九份，utf8mb4_unicode_ci。`20261022071222_init_users` 和 `20261022152735_create_role_userrole` 未改写，其中用户列仍是 `name`。增量变化在已应用的 `20261031082805_add_role_permission`：新建 `permissions`、`role_permissions`、`sys_user_session`；`password`、`username`、`nickname`、`avatar` 等新列可空，没有用假密码填充。这份 SQL 对 `users.name` 是 `DROP COLUMN` 再 `ADD nickname`，不是 `RENAME`；同时删除 `age` 以及原来的驼峰时间列再新建下划线时间列。因此应用当时，`name`、`age` 和旧时间列里的值没有被拷贝到新列。该文件已经记入本地迁移历史，不能回改。2026-11-02 只读核对：`prisma migrate status` 显示 3 份迁移且数据库已是最新；库相对 Schema 的 `migrate diff` 为空。按迁移目录做 diff 因未配置 `shadowDatabaseUrl` 未能执行。同日 `migrate dev --create-only` 只写出空迁移，已删除，没有 `migrate deploy`，也没有 reset。证据见 [CHG-20261102-001](../changelog/2026-11-02-001-migration-alignment.md)。2026-11-10 新增并应用 `20261110151500_add_refresh_token`：只新建 `sys_refresh_token`，外键指向 `sys_user_session` 且级联删除，并把已有 64 位十六进制摘要回填为未使用记录。同日应用 `20261110164600_add_user_token_version`：只给 `users` 增加 `token_version INTEGER NOT NULL DEFAULT 0`。两次应用后库相对 Schema 的 diff 均为空。没有 reset，也没有改写已应用迁移。证据见 [CHG-20261110-004](../changelog/2026-11-10-004-refresh-rotation.md) 与 [CHG-20261110-005](../changelog/2026-11-10-005-session-revoke.md)。2026-11-11 应用 `20261111151500_add_auth_attempt_bucket`：只新建 `auth_attempt_buckets`，保存登录尝试的 HMAC 键、窗口起点和次数。应用后 diff 为空。没有 reset。证据见 [CHG-20261111-001](../changelog/2026-11-11-001-login-attempt-limit.md)。2026-11-12 应用 `20261112160000_add_role_is_system`：只给 `roles` 增加 `is_system BOOLEAN NOT NULL DEFAULT false`。应用后 diff 为空。没有 reset，也没有改写已应用迁移。证据见 [CHG-20261112-002](../changelog/2026-11-12-002-role-assignment.md)。2026-11-16 应用 `20261116140000_add_audit_log`：只新建 `audit_logs`，外键指向 `users` 且删除限制为 RESTRICT。没有 reset，也没有改写已应用迁移。证据见 [CHG-20261116-005](../changelog/2026-11-16-005-audit-log.md)。
 
 ### 目标模型与增量调整要求
 
-下方是阶段目标，尚未落实，不可整体覆盖当前 Schema。资料字段已使用可空 `nickname`，并有可空 username、password、avatar、lastLoginAt、deletedAt；这不是下方目标模型的整体替换。phone、sex 仍保留，age 已从当前 Schema 删除。数字状态映射、邮箱长度与归一化、`password` 与目标 `passwordHash` 的命名仍留到后续单独设计。单条软删除已在阶段 04 落地，批量删除仍未实现。已应用迁移里的 `name` 删除无法靠改旧文件挽回。保留已有 Role/UserRole。软删和硬删除的关系、级联行为需与 04/06 及 ADR0004 同步评审，未确认前不 reset、不 drop、不改写已应用迁移。
+下方是阶段目标，尚未落实，不可整体覆盖当前 Schema。资料字段已使用可空 `nickname`，并有可空 username、password、avatar、lastLoginAt、deletedAt；这不是下方目标模型的整体替换。phone、sex 仍保留，age 已从当前 Schema 删除。数字状态映射、更长的邮箱、用户名小写正则和 `passwordHash` 列名不再单独排期。单条软删除已在阶段 04 落地，批量删除仍未实现。已应用迁移里的 `name` 删除无法靠改旧文件挽回。保留已有 Role/UserRole。软删和硬删除的关系、级联行为需与 04/06 及 ADR0004 同步评审，未确认前不 reset、不 drop、不改写已应用迁移。
 
 目标 `users`：Int 自增 PK；username/email 唯一（含软删记录仍保留），status+deletedAt+id 组合索引用于列表；05/06 后续只追加缺失的会话/权限结构和关系，不重复创建已有角色表。时间为 UTC DateTime(3)。不设 Role 枚举锁死扩展。
 
@@ -205,13 +205,19 @@ passwordHash可空只为管理端先建PENDING资料；不能用空字符串或�
 
 ## 8. 验收标准
 
-- [ ] 三个Prisma包精确7.10.1，validate/generate/build成功。
-- [ ] CLI与runtime连接同一目标库，密码特殊字符被正确解析。
-- [ ] 审阅迁移后，在确认过的隔离空库deploy成功；索引/字段/默认值符合Schema。
-- [ ] 唯一约束、事务回滚、连接失败与关闭验证通过。
-- [ ] Node直接运行dist成功；生产TLS和专用账户要求已记录。
+- [x] 三个Prisma包精确7.10.1，validate/generate/build成功。
+- [x] CLI与runtime连接同一目标库，密码特殊字符被正确解析。
+- [x] 审阅迁移后，在确认过的隔离空库deploy成功；索引/字段/默认值符合Schema。
+- [x] 唯一约束、事务回滚、连接失败与关闭验证通过。
+- [x] Node直接运行dist成功；生产TLS和专用账户要求已记录。
 
-数据库集成验收：未执行。MySQL 实际版本、账户权限、迁移应用历史、存量数据和连通性待确认。
+2026-11-18 本地只读验收：win32 x64、Node 24.22.2、pnpm 11.13.1、Prisma CLI 与 `@prisma/client`、`@prisma/adapter-mariadb` 均为 7.10.1、TypeScript 6.0.3；运行目录 `project/`。`prisma validate --config prisma7.config.ts`、`pnpm run build`（内含 `prisma generate`）退出 0，生成 Prisma Client 7.10.1。`prisma migrate status --config prisma7.config.ts` 显示 `127.0.0.1:3306` 上的 `nestjs_new_db` 有九份迁移且已是最新。`prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code` 退出 0，输出无差异。只读查询得到版本 8.4.10、字符集 utf8mb4、库默认排序规则 utf8mb4_0900_ai_ci、`time_zone` 为 SYSTEM；`users` 与 `roles` 的表排序规则是 utf8mb4_unicode_ci。没有读取或记录账户和密码。运行时解析器用示例地址 `p%40ss%3Aword` 解出 `p@ss:word`，并用同一 `DATABASE_URL` 连上上述库。`node dist/main.js` 监听 `http://127.0.0.1:3000/api/v1`；`GET /api/v1/health/live` 与 `GET /api/v1/health/ready` 均返回 200，随后强制结束进程。本次连接没有 TLS。生产 TLS 和 runtime/迁移分账户的要求仍见第 5.1 节，账户是否不能 DDL 没有探测。没有 `migrate deploy`、`migrate dev`、reset 或 drop。隔离空库、唯一约束、事务回滚、连接失败和关闭钩子留到同日下一次核对。证据见 [CHG-20261118-004](../changelog/2026-11-18-004-database-acceptance.md)。
+
+2026-11-18 隔离库验收：同一环境，目录 `project/`。新建空库 `init_xue_test_mwlm5aco` 和临时 shadow 库 `init_xue_test_mwlm5acosh`，两者都只在 `127.0.0.1`。对空库执行 `prisma migrate deploy --config prisma7.config.ts` 退出 0。该库相对 Schema 的 `migrate diff --exit-code` 退出 0。用临时 shadow 地址重放 `prisma/migrations` 后再与 Schema 比较，同样退出 0；这个地址没有写入 `.env` 或配置。十张业务表都在。`users.username`、`email`、`phone` 为唯一索引，`status` 和 `deleted_at` 有索引。`email` 为 `varchar(100)` 且非空，`username` 为可空 `varchar(50)`，`password` 为可空 `varchar(255)`，`status` 默认 1，`token_version` 默认 0，`roles.is_system` 默认 0。重复邮箱和重复用户名都返回 MySQL 1062，随后删除这两行测试数据。插入后回滚，对应邮箱计数为 0。连接 `127.0.0.1:1` 得到 `ECONNREFUSED`。驱动连接 `end()` 后再次查询失败。在该隔离库上调用 Nest `app.close()` 后，日志出现「Prisma 数据库连接已断开」。同一账户能在隔离库创建并删除探针表 `_stage02_ddl_probe`，所以本地还不是无权 DDL 的运行账户。会话时区是 `SYSTEM`，系统时区 `CST`，相对 UTC 偏移 480 分钟。Windows 上对 `node dist/main.js` 发送 SIGINT 和 SIGTERM 后进程退出码为 1，没有断开日志。没有 reset、drop，也没有改开发库 `nestjs_new_db`；事后 `migrate status` 仍是九份迁移且已是最新。证据见 [CHG-20261118-005](../changelog/2026-11-18-005-database-isolation.md)。
+
+2026-11-18 收尾：退出门槛是生成与构建、隔离库迁移、连接关闭和事务。这几项已有同日证据，第 8 节五条均已勾选。本地保持现有 `DATABASE_URL`、现有业务表和 `_prisma_migrations`，不新建用户，不加表。生产 TLS、把服务器时区设为 UTC、以及部署时另备迁移账户，按[阶段 10](../10-deployment/implementation.md)处理，不在本阶段改本地库。证据见 [CHG-20261118-006](../changelog/2026-11-18-006-database-close.md)。
+
+此前“数据库集成验收：未执行”只描述 2026-11-18 之前的状态。2026-10-31 及更早的局部检查仍不能单独勾选完整阶段。
 
 2026-10-31 DATABASE_URL 收口局部检查：Darwin arm64、Node 24.18.0、pnpm 11.13.1、Prisma 7.10.1、TypeScript 6.0.3；运行目录 `project/`。生产与测试 `tsc --noEmit --incremental false`、目标文件 ESLint/Prettier 退出 0；使用占位 `DATABASE_URL` 执行 `prisma generate --config prisma7.config.ts` 与 `nest build` 退出 0。未执行 Jest、migrate、真实连接或读取个人连接串内容。证据见 [CHG-20261031-001](../changelog/2026-10-31-001-database-url.md)。
 
@@ -233,4 +239,4 @@ passwordHash可空只为管理端先建PENDING资料；不能用空字符串或�
 
 ## 10. 后续扩展
 
-[03](../03-api-standards/implementation.md) 统一映射数据库异常；[04](../04-user-management/implementation.md) 补齐 User 查询/软删；05 增加会话和密码重置，06 在已有角色关联基础上补权限与授权行为，均为增量迁移。连接池容量按应用副本数×每副本连接数与 DB 容量评估后调整。
+[03](../03-api-standards/implementation.md) 统一映射数据库异常；[04](../04-user-management/implementation.md) 补齐 User 查询/软删；05 增加会话和密码重置，06 在已有角色关联基础上补权限与授权行为，均为增量迁移。生产 TLS、服务器 UTC 和部署用的迁移账户见[阶段 10](../10-deployment/implementation.md)。连接池容量按应用副本数×每副本连接数与 DB 容量评估后调整。
