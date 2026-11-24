@@ -46,6 +46,9 @@
 
 ## 变更记录
 
+- [doc/changelog/2026-11-19-003-unit-coverage.md](changelog/2026-11-19-003-unit-coverage.md)
+- [doc/changelog/2026-11-19-002-format-check.md](changelog/2026-11-19-002-format-check.md)
+- [doc/changelog/2026-11-19-001-architecture-guide.md](changelog/2026-11-19-001-architecture-guide.md)
 - [doc/changelog/2026-11-18-013-test-acceptance.md](changelog/2026-11-18-013-test-acceptance.md)
 - [doc/changelog/2026-11-18-012-common-acceptance.md](changelog/2026-11-18-012-common-acceptance.md)
 - [doc/changelog/2026-11-18-011-redis-acceptance.md](changelog/2026-11-18-011-redis-acceptance.md)

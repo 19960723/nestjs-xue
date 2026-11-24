@@ -1,6 +1,6 @@
 # 阶段 09：测试与代码质量
 
-更新：2026-11-18。文档状态：已更新；功能状态：进行中。隔离库 19 项已通过，类型检查和 lint 本次退出 0。格式检查未通过，覆盖率、CI、业务单测和 Windows 上的 `pnpm test` / `pnpm run test:e2e` 仍未作为验收。阶段不能标为已验证。完整分层/CI 依赖 02～08。阶段 01 当时为 27 项单元测试与 5 项 HTTP E2E 通过，属于历史结果，不代表接入数据库后当前代码已复验。
+更新：2026-11-19。文档状态：已更新；功能状态：进行中。隔离库 19 项已通过，类型检查和 lint 在 2026-11-18 退出 0。2026-11-19 格式检查退出 0，单元覆盖率命令也退出 0，但只统计到配置单测，全量语句覆盖率 7.14%。覆盖率门禁、CI、业务单测和 Windows 上的 `pnpm test` / `pnpm run test:e2e` 仍未作为验收。阶段不能标为已验证。完整分层/CI 依赖 02～08。阶段 01 当时为 27 项单元测试与 5 项 HTTP E2E 通过，属于历史结果，不代表接入数据库后当前代码已复验。
 
 2026-10-23：Swagger 局部测试曾通过，随后按用户要求删除新增测试文件。该次暂停只保留为历史，不阻止 2026-11-17 已授权的第一批集成测试。历史记录见 [CHG-20261023-001](../changelog/2026-10-23-001-swagger-decorators.md)。
 
@@ -195,6 +195,10 @@ export default {
 同日较晚一次仍是该命令，退出码 0。隔离库 `init_xue_test_mwlzd4jv`。2 个套件、19 项通过。这次收尾没有再跑这条命令，也没有新建测试库。
 
 2026-11-18 静态核对：win32 x64、Node 24.22.2，目录 `project/`。`pnpm run typecheck` 和 `pnpm run typecheck:test` 退出 0。`pnpm run lint` 退出 0。`pnpm run format:check` 退出 1，`src/modules/files/files.service.ts` 和 `test/auth-security.integration-spec.ts` 与 Prettier 不一致。没有改这两个文件。没有运行 `pnpm test`、`pnpm run test:cov`、`pnpm run test:e2e` 和 `pnpm run build`。仓库里没有 CI 工作流。配置单测里上传目录断言在 Windows 上仍失败，见 [CHG-20261118-002](../changelog/2026-11-18-002-rate-limit.md)。证据见 [CHG-20261118-013](../changelog/2026-11-18-013-test-acceptance.md)。
+
+2026-11-19 格式修复：Darwin arm64、Node 24.18.0、pnpm 11.13.1，目录 `project/`。先运行 `pnpm run format:check`，退出 1，仍是上述两个文件。随后只对这两个文件执行 Prettier。`files.service.ts` 把一条过长条件拆行。测试文件只把换行符改成 LF，忽略换行符后没有内容差异。再次运行 `pnpm run format:check`，退出 0。没有运行类型检查、lint、测试、覆盖率、构建或 CI。证据见 [CHG-20261119-002](../changelog/2026-11-19-002-format-check.md)。
+
+2026-11-19 单元覆盖率：同一环境，目录 `project/`。`pnpm run test:cov` 退出 0。1 个套件、52 项通过，只包含 `src/config/env.validation.spec.ts`。全量语句覆盖率 7.14%，分支 48.07%，函数 12.37%，行 7.14%。`env.validation.ts` 语句 90.41%、分支 80.76%。认证、授权、用户、审计和 Redis 在这条命令下都是 0。登录、权限、改密和软删除已在隔离库集成套件里，没有被 `test:cov` 统计。没有运行 `pnpm run test:integration:auth`，没有新建测试库。覆盖率门禁和 CI 未做。证据见 [CHG-20261119-003](../changelog/2026-11-19-003-unit-coverage.md)。
 
 ## 9. 常见问题
 

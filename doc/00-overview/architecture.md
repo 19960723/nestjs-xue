@@ -1,8 +1,84 @@
 # 模块化单体架构
 
-更新：2026-11-14。文档状态：已更新；目标方案仍见提议中的 [ADR 0001](../decisions/0001-modular-monolith.md)。当前已有 Health、Users、Roles、Auth、Authorization 和 Prisma 模块。全局入口是 ApiGuard：先校验 Access，再按路由声明查库核对权限。阶段 01 及 Swagger 局部历史验收不代表数据库业务已验证。
+更新：2026-11-19（Asia/Shanghai）。文档状态：已更新。这是当前架构入口。阶段状态以[导航](../README.md)为准：02～08 已本地验收，09 进行中，10 计划中。[ADR 0001](../decisions/0001-modular-monolith.md) 仍是提议，本次只对齐说明，不改为已接受。
 
-## 当前实现与目标差异
+一个 API 进程。MySQL 保存用户、会话和权限。Redis 只做登录限流、全站限流和用户详情短缓存。新业务在 `project/src/modules/` 下加一个模块，不拆服务。
+
+## 请求怎么走
+
+`main.ts` 调用 `createAppModule()` 校验环境并组装模块，再由 `bootstrap/configure-app.ts` 挂上 `/api/v1`、安全响应头、精确跨域和 DTO 校验。
+
+```mermaid
+flowchart LR
+  Client[客户端] --> Http["HTTP /api/v1"]
+  Http --> Trace[requestId]
+  Trace --> ApiGuard[ApiGuard]
+  ApiGuard --> Validate[DTO校验]
+  Validate --> Controller[Controller]
+  Controller --> Service[Service]
+  Service --> Prisma[PrismaService]
+  Prisma --> MySQL[(MySQL)]
+  Service -->|"限流或短缓存"| Redis[(Redis)]
+```
+
+`ApiGuard` 先校验 Access，再按路由权限码查库。公开路由用装饰器声明，只登录即可的路由单独声明，其余默认拒绝。成功响应由 `CommonModule` 包装，异常由全局过滤器输出。Guard 在 DTO 校验之前运行。
+
+## 模块各管什么
+
+```text
+project/src/
+  main.ts                         # 监听、退出信号
+  app.module.ts                   # 常驻模块；createAppModule 再加配置和开关
+  bootstrap/                      # HTTP 规则、Swagger
+  config/                         # 环境校验
+  common/                         # requestId、响应包装、异常、JSON 日志
+  database/prisma/                # 全局 PrismaModule，一个 PrismaService
+  infrastructure/redis/           # 一个 Redis 连接
+  modules/
+    users/                        # 资料、设密、状态、单条软删除
+    roles/                        # 角色 CRUD
+    auth/                         # 登录、刷新、退出、改密、登录限制
+    authorization/                # 权限目录、角色分配、ApiGuard
+    audit/                        # 同事务审计和只读查询
+    health/                       # live 不查依赖；ready 查 MySQL 和 Redis
+    maintenance/                  # 清理服务常在；定时器默认关闭
+    files/                        # 上传下载；默认不注册路由
+  generated/prisma/               # 生成客户端，不手改、不入库
+```
+
+常驻模块由 `AppModule` 导入：`CommonModule`、`HealthModule`、`PrismaModule`、`AuthModule`、`AuthorizationModule`、`UsersModule`、`RolesModule`。`createAppModule()` 再加入配置、可选 Observe、清理模块，以及仅在上传开关打开时的 `FilesModule`。
+
+| 模块 | 负责 | 依赖 |
+| --- | --- | --- |
+| Users | 用户资料和状态 | Auth、Redis、Audit |
+| Roles | 角色资料 | Prisma、Audit |
+| Auth | 密码哈希、JWT、会话；导出 `PasswordService` 和 `JwtAuthGuard` | Redis、Audit |
+| Authorization | 权限和角色分配；把 Access 校验与权限校验合成唯一全局 Guard | Auth、Audit、Redis |
+| Audit | 关键写入的同一事务记录，以及审计查询 | Common |
+| Health | 存活与就绪 | Redis |
+| Maintenance | 过期登录计数和过期会话 | 定时器仅在开关打开时加载 |
+| Files | 默认关闭的上传和下载 | 开关打开才出现路由 |
+
+`PrismaModule` 使用 `@Global()`。业务 Service 直接注入 `PrismaService`，查询使用公开字段白名单。当前没有 Repository。`RolesModule` 额外显式导入了同一个 `PrismaModule`。
+
+用户模块导入整个认证模块，是为了复用 `PasswordService`。授权模块导入整个认证模块，是为了复用 `JwtAuthGuard`。这次不拆开这两处依赖。
+
+批量删除、自助注册、密码重置和 `permissionVersion` 已明确不做。多副本清理锁和上传孤儿扫描未做，不改变上面的模块边界。
+
+## 以后怎么加模块
+
+1. 在 `project/src/modules/<name>/` 新建模块，包含 Controller、Service、DTO 和 `*.module.ts`。
+2. Controller 只接路由、DTO 和 Swagger。事务、不变量和字段白名单放在 Service。
+3. 需要登录或权限时，使用现有装饰器，不新写一套 Guard。
+4. 关键写入和审计放在同一个数据库事务里。事务内不访问 Redis、不发外部请求、不做慢密码哈希。
+5. 在 `AppModule` 或 `createAppModule()` 里导入。可选能力沿用清理和文件的开关，默认关闭。
+6. 不新增 `shared/` 第二套公共目录，不造通用 Repository 基类。查询边界真的缠在一起时，再给该模块加一个具体 Repository。
+
+## 历史盘点
+
+从这里往下是 2026-10 的目标方案和当时盘点，只保留证据。其中“当前”“未实现”指的是记录当天，不代表现在。认证、Redis、Guard、目录和阶段验收以本节之前的说明为准。
+
+## 当时的实现差异
 
 2026-10-23 静态盘点，以下只描述可检查的代码，不代表数据库运行验收。
 

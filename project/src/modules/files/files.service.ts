@@ -131,7 +131,10 @@ export class FilesService {
       }
       throw error;
     }
-    if (!row || (row.mimeType !== 'image/png' && row.mimeType !== 'image/jpeg')) {
+    if (
+      !row ||
+      (row.mimeType !== 'image/png' && row.mimeType !== 'image/jpeg')
+    ) {
       throw new NotFoundException('资源不存在');
     }
     if (row.ownerId !== userId && !(await this.canReadAny(userId))) {
